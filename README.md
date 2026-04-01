@@ -1,6 +1,6 @@
-# TinyIM V3
+# TinyIM V4
 
-当前版本只实现 V3：在 V2 协议基础上，引入 SQLite 用户持久化和 `register/login`。
+当前版本只实现 V4：在 V3 的注册/登录基础上，引入连接状态机和在线 SessionManager。
 
 ## 功能范围
 
@@ -13,26 +13,29 @@
 - 支持 `register` / `login`
 - 设置了 `sqlite3_busy_timeout`
 - 服务端重启后，已注册用户仍可登录
+- 为每个连接维护 `Connected / Authed / Closed` 状态
+- 维护 `user -> fd` 和 `fd -> user` 双向映射
+- 未登录用户不能发送业务消息
+- 重复登录策略：拒绝新登录，保留旧连接
 
 ## 不在本版本内的内容
 
-- SessionManager
 - `epoll`
 - 线程池
-- 在线态
 - 单聊 / 离线消息
 
 ## 协议格式
 
 - frame = `4` 字节长度前缀 + JSON body
 - 长度前缀为网络字节序 `uint32_t`
-- 当前 V3 只支持最小 JSON 子集：
+- 当前 V4 只支持最小 JSON 子集：
 - 顶层对象
 - key 为字符串
 - value 暂时只支持字符串
 - 注册请求：`{"type":"register","username":"alice","password":"123456"}`
 - 登录请求：`{"type":"login","username":"alice","password":"123456"}`
-- 普通消息仍可继续广播
+- 业务消息示例：`{"type":"chat","text":"hello"}`
+- 只有登录成功后的连接才允许发送业务消息
 
 ## 编译
 
@@ -44,15 +47,15 @@ cmake --build build
 ## 运行
 
 ```bash
-./build/tinyim_v3
+./build/tinyim_v4
 ```
 
 ## 验收
 
 1. 启动服务端。
 2. 发送 `register` 请求，确认返回成功响应。
-3. 使用 `sqlite3 tinyim_v3.db 'select username from users;'` 确认表中有记录。
-4. 重复注册相同用户，确认返回“用户已存在”。
-5. 发送正确密码的 `login` 请求，确认返回成功响应。
-6. 发送错误密码的 `login` 请求，确认返回失败响应且连接不断开。
-7. 重启服务端后再次 `login`，确认已注册用户仍然存在。
+3. 发送未登录业务消息，例如 `{"type":"chat","text":"hello"}`，确认被拒绝。
+4. 发送正确密码的 `login` 请求，确认返回成功响应。
+5. 登录后再发送业务消息，确认允许继续广播。
+6. 用第二个客户端再次登录同一账号，确认返回“用户已在线，当前策略为拒绝新登录”。
+7. 断开已登录客户端后，再次登录同一账号，确认可以重新登录。

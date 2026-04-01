@@ -9,10 +9,18 @@
 #include <utility>
 
 class AuthService;
+class SessionManager;
+
+enum class ConnectionState {
+    Connected,
+    Authed,
+    Closed
+};
 
 struct ClientConnection {
     int fd;
     std::string inbuf;
+    ConnectionState state;
 };
 
 class Server {
@@ -31,6 +39,7 @@ private:
     bool processFrames(int client_fd);
     bool handleApplicationMessage(int client_fd, const std::string& json_text);
     bool sendJsonMessage(int client_fd, const std::string& json_text);
+    ConnectionState getConnectionState(int client_fd) const;
     void removeClient(int client_fd);
     void broadcastJsonMessage(int sender_fd, const std::string& json_text);
     bool writeAll(int fd, const char* data, std::size_t length);
@@ -41,6 +50,7 @@ private:
     int listen_fd_;
     std::map<int, ClientConnection> clients_;
     std::unique_ptr<AuthService> auth_service_;
+    std::unique_ptr<SessionManager> session_manager_;
 };
 
 #endif

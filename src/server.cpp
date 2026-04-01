@@ -3,6 +3,7 @@
 #include "../protocol/FramingCodec.h"
 #include "../protocol/JsonCodec.h"
 #include "../service/AuthService.h"
+#include "../service/SessionManager.h"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -30,7 +31,8 @@ Server::Server(std::uint16_t port, std::string db_path)
     : port_(port),
       db_path_(std::move(db_path)),
       listen_fd_(-1),
-      auth_service_(std::make_unique<AuthService>(db_path_)) {}
+      auth_service_(std::make_unique<AuthService>(db_path_)),
+      session_manager_(std::make_unique<SessionManager>()) {}
 
 Server::~Server() {
     for (const auto& entry : clients_) {
@@ -160,7 +162,7 @@ bool Server::handleNewConnection() {
     );
     const std::string ip_text = ip == nullptr ? "unknown" : ip;
 
-    clients_.emplace(client_fd, ClientConnection{client_fd, ""});
+    clients_.emplace(client_fd, ClientConnection{client_fd, "", ConnectionState::Connected});
     std::cout << "Client connected: " << ip_text
               << ":" << ntohs(client_addr.sin_port)
               << ", fd=" << client_fd << std::endl;
@@ -222,7 +224,7 @@ bool Server::processFrames(int client_fd) {
         std::map<std::string, std::string> fields;
         std::string json_error;
         if (!protocol::JsonCodec::parseObject(frame, fields, json_error)) {
-            std::cerr << "JSON body rejected by V3 protocol from fd=" << client_fd
+            std::cerr << "JSON body rejected by V4 protocol from fd=" << client_fd
                       << ": " << json_error << std::endl;
             return false;
         }
@@ -243,14 +245,54 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
         return false;
     }
 
-    bool handled = false;
-    const std::map<std::string, std::string> response = auth_service_->handleMessage(fields, handled);
-    if (handled) {
+    const AuthResult auth_result = auth_service_->handleMessage(fields);
+    if (auth_result.handled) {
+        std::map<std::string, std::string> response = {
+            {"message", auth_result.message},
+            {"ok", auth_result.success ? "true" : "false"},
+            {"type", auth_result.type}
+        };
+
+        if (auth_result.type == "login_resp" && auth_result.success) {
+            if (session_manager_->isUserOnline(auth_result.username)) {
+                response["ok"] = "false";
+                response["message"] = "用户已在线，当前策略为拒绝新登录";
+            } else if (!session_manager_->bindUser(auth_result.username, client_fd)) {
+                response["ok"] = "false";
+                response["message"] = "绑定在线态失败";
+            } else {
+                auto it = clients_.find(client_fd);
+                if (it != clients_.end()) {
+                    it->second.state = ConnectionState::Authed;
+                }
+            }
+        }
+
         return sendJsonMessage(client_fd, protocol::JsonCodec::encodeObject(response));
+    }
+
+    if (!session_manager_->isAuthed(client_fd) || getConnectionState(client_fd) != ConnectionState::Authed) {
+        return sendJsonMessage(
+            client_fd,
+            protocol::JsonCodec::encodeObject({
+                {"message", "未登录用户不能发送业务消息"},
+                {"ok", "false"},
+                {"type", "error_resp"}
+            })
+        );
     }
 
     broadcastJsonMessage(client_fd, json_text);
     return true;
+}
+
+ConnectionState Server::getConnectionState(int client_fd) const {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return ConnectionState::Closed;
+    }
+
+    return it->second.state;
 }
 
 bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
@@ -264,9 +306,14 @@ bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
 }
 
 void Server::removeClient(int client_fd) {
-    if (clients_.erase(client_fd) == 0) {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
         return;
     }
+
+    it->second.state = ConnectionState::Closed;
+    session_manager_->unbindFd(client_fd);
+    clients_.erase(it);
 
     if (close(client_fd) < 0) {
         printError("close client socket");

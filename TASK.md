@@ -1,48 +1,47 @@
 # TASK.md
 
 ## 当前版本
-V3：注册 / 登录 + SQLite 落地用户
+V4：SessionManager 与在线态
 
 ## 当前目标
-先检查必要组件与环境，组件与环境完整就在 V2 协议基础上，引入用户系统和 SQLite 持久化。
-若组件与环境不完整就直接告知用户，让用户安装好在开始
+在 V3 的注册/登录基础上，引入连接状态机和在线用户映射。
 
 ## 必做功能
-1. 引入 SQLite 连接层
-2. 服务端启动时自动创建 users 表
-3. 支持 register 消息
-4. 支持 login 消息
-5. 重复注册返回明确错误
-6. 登录失败不影响连接稳定
-7. 服务端重启后用户仍存在
-8. 设置 sqlite3_busy_timeout
+1. 为每个连接维护状态：
+   - Connected
+   - Authed
+   - Closed
+2. 登录成功后，将用户和连接绑定
+3. 维护双向映射：
+   - user -> fd
+   - fd -> user
+4. 未登录用户不能发送业务消息
+5. 连接断开时，必须清理在线态
+6. 固化一种重复登录策略：
+   - 拒绝新登录
+   或
+   - 踢掉旧连接
 
 ## 建议新增/修改模块
-- storage/SqliteDB.h
-- storage/SqliteDB.cpp
-- storage/UserDao.h
-- storage/UserDao.cpp
-- service/AuthService.h
-- service/AuthService.cpp
+- service/SessionManager.h
+- service/SessionManager.cpp
 - src/server.h
 - src/server.cpp
 - README.md
 
 ## 当前限制
-1. 只允许完成 V3
-2. 不要实现 V4 及之后内容
-3. 不要做 SessionManager
-4. 不要做在线态
-5. 不要做单聊 / 离线消息
-6. 不要做 epoll
-7. 不要做线程池
+1. 只允许完成 V4
+2. 不要实现 V5 及之后内容
+3. 不要做单聊
+4. 不要做离线消息
+5. 不要做 epoll
+6. 不要做线程池
 
 ## 验收标准
-1. register 成功后，users 表有记录
-2. 重复注册，返回“用户已存在”
-3. login 成功后返回成功响应
-4. 错误密码登录失败，但连接不断
-5. 服务端重启后，已注册用户仍可登录
+1. 用户登录成功后，服务端能识别其在线身份
+2. 未登录用户发送业务消息会被拒绝
+3. 同一账号重复登录时，符合你选定的策略
+4. 客户端断开后，在线态被正确清理
 
 ## 完成后必须输出
 1. 修改文件列表
