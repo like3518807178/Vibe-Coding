@@ -9,6 +9,7 @@
 #include <utility>
 
 class AuthService;
+class OfflineService;
 class SessionManager;
 
 enum class ConnectionState {
@@ -39,9 +40,10 @@ private:
     bool processFrames(int client_fd);
     bool handleApplicationMessage(int client_fd, const std::string& json_text);
     bool sendJsonMessage(int client_fd, const std::string& json_text);
+    bool sendJsonObject(int client_fd, const std::map<std::string, std::string>& fields);
+    bool deliverOfflineMessages(int client_fd, const std::string& username);
     ConnectionState getConnectionState(int client_fd) const;
     void removeClient(int client_fd);
-    void broadcastJsonMessage(int sender_fd, const std::string& json_text);
     bool writeAll(int fd, const char* data, std::size_t length);
     int getMaxFd() const;
 
@@ -51,6 +53,7 @@ private:
     std::map<int, ClientConnection> clients_;
     std::unique_ptr<AuthService> auth_service_;
     std::unique_ptr<SessionManager> session_manager_;
+    std::unique_ptr<OfflineService> offline_service_;
 };
 
 #endif

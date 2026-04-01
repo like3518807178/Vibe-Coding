@@ -3,6 +3,7 @@
 #include "../protocol/FramingCodec.h"
 #include "../protocol/JsonCodec.h"
 #include "../service/AuthService.h"
+#include "../service/OfflineService.h"
 #include "../service/SessionManager.h"
 
 #include <arpa/inet.h>
@@ -32,7 +33,8 @@ Server::Server(std::uint16_t port, std::string db_path)
       db_path_(std::move(db_path)),
       listen_fd_(-1),
       auth_service_(std::make_unique<AuthService>(db_path_)),
-      session_manager_(std::make_unique<SessionManager>()) {}
+      session_manager_(std::make_unique<SessionManager>()),
+      offline_service_(std::make_unique<OfflineService>(db_path_, *session_manager_)) {}
 
 Server::~Server() {
     for (const auto& entry : clients_) {
@@ -48,6 +50,11 @@ bool Server::start() {
     std::string db_error;
     if (!auth_service_->init(db_error)) {
         std::cerr << "Auth service init failed: " << db_error << std::endl;
+        return false;
+    }
+
+    if (!offline_service_->init(db_error)) {
+        std::cerr << "Offline service init failed: " << db_error << std::endl;
         return false;
     }
 
@@ -224,7 +231,7 @@ bool Server::processFrames(int client_fd) {
         std::map<std::string, std::string> fields;
         std::string json_error;
         if (!protocol::JsonCodec::parseObject(frame, fields, json_error)) {
-            std::cerr << "JSON body rejected by V4 protocol from fd=" << client_fd
+            std::cerr << "JSON body rejected by V5 protocol from fd=" << client_fd
                       << ": " << json_error << std::endl;
             return false;
         }
@@ -268,22 +275,92 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
             }
         }
 
-        return sendJsonMessage(client_fd, protocol::JsonCodec::encodeObject(response));
+        if (!sendJsonObject(client_fd, response)) {
+            return false;
+        }
+
+        if (auth_result.type == "login_resp" && response["ok"] == "true") {
+            return deliverOfflineMessages(client_fd, auth_result.username);
+        }
+
+        return true;
     }
 
     if (!session_manager_->isAuthed(client_fd) || getConnectionState(client_fd) != ConnectionState::Authed) {
-        return sendJsonMessage(
+        return sendJsonObject(
             client_fd,
-            protocol::JsonCodec::encodeObject({
+            {
                 {"message", "未登录用户不能发送业务消息"},
                 {"ok", "false"},
                 {"type", "error_resp"}
-            })
+            }
         );
     }
 
-    broadcastJsonMessage(client_fd, json_text);
-    return true;
+    auto type_it = fields.find("type");
+    if (type_it == fields.end()) {
+        return sendJsonObject(
+            client_fd,
+            {
+                {"message", "缺少 type"},
+                {"ok", "false"},
+                {"type", "error_resp"}
+            }
+        );
+    }
+
+    if (type_it->second != "send") {
+        return sendJsonObject(
+            client_fd,
+            {
+                {"message", "未知业务消息类型"},
+                {"ok", "false"},
+                {"type", "error_resp"}
+            }
+        );
+    }
+
+    const auto to_it = fields.find("to");
+    const auto text_it = fields.find("text");
+    if (to_it == fields.end() || text_it == fields.end()) {
+        return sendJsonObject(
+            client_fd,
+            {
+                {"message", "缺少 to 或 text"},
+                {"ok", "false"},
+                {"type", "send_resp"}
+            }
+        );
+    }
+
+    const std::string from_user = session_manager_->getUserByFd(client_fd);
+    SendDispatchResult dispatch{};
+    std::string offline_error;
+    if (!offline_service_->handleSend(from_user, to_it->second, text_it->second, dispatch, offline_error)) {
+        return sendJsonObject(
+            client_fd,
+            {
+                {"message", offline_error.empty() ? "发送失败" : offline_error},
+                {"ok", "false"},
+                {"type", "send_resp"}
+            }
+        );
+    }
+
+    if (dispatch.deliver_online) {
+        if (!sendJsonObject(dispatch.target_fd, dispatch.deliver_payload)) {
+            return false;
+        }
+    }
+
+    return sendJsonObject(
+        client_fd,
+        {
+            {"message", dispatch.message},
+            {"ok", dispatch.success ? "true" : "false"},
+            {"type", "send_resp"}
+        }
+    );
 }
 
 ConnectionState Server::getConnectionState(int client_fd) const {
@@ -305,6 +382,44 @@ bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
     return true;
 }
 
+bool Server::sendJsonObject(int client_fd, const std::map<std::string, std::string>& fields) {
+    return sendJsonMessage(client_fd, protocol::JsonCodec::encodeObject(fields));
+}
+
+bool Server::deliverOfflineMessages(int client_fd, const std::string& username) {
+    std::vector<OfflineMessageRecord> records;
+    std::string error;
+    if (!offline_service_->listUndelivered(username, records, error)) {
+        std::cerr << "Failed to list offline messages for " << username
+                  << ": " << error << std::endl;
+        return false;
+    }
+
+    for (const auto& record : records) {
+        if (!sendJsonObject(
+                client_fd,
+                {
+                    {"from", record.from_user},
+                    {"msg_id", std::to_string(record.msg_id)},
+                    {"text", record.body},
+                    {"to", record.to_user},
+                    {"ts", record.ts},
+                    {"type", "offline_msg"}
+                }
+            )) {
+            return false;
+        }
+
+        if (!offline_service_->markDelivered(record.msg_id, error)) {
+            std::cerr << "Failed to mark offline message delivered, msg_id="
+                      << record.msg_id << ": " << error << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void Server::removeClient(int client_fd) {
     auto it = clients_.find(client_fd);
     if (it == clients_.end()) {
@@ -317,27 +432,6 @@ void Server::removeClient(int client_fd) {
 
     if (close(client_fd) < 0) {
         printError("close client socket");
-    }
-}
-
-void Server::broadcastJsonMessage(int sender_fd, const std::string& json_text) {
-    const std::string packet = protocol::FramingCodec::encode(json_text);
-
-    std::vector<int> failed_clients;
-    for (const auto& entry : clients_) {
-        const int client_fd = entry.first;
-        if (client_fd == sender_fd) {
-            continue;
-        }
-
-        if (!writeAll(client_fd, packet.data(), packet.size())) {
-            failed_clients.push_back(client_fd);
-        }
-    }
-
-    for (int client_fd : failed_clients) {
-        std::cerr << "Removing client after write failure: fd=" << client_fd << std::endl;
-        removeClient(client_fd);
     }
 }
 

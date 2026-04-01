@@ -40,5 +40,5 @@ set(CMAKE_MAKEFILE_PRODUCTS
 
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
-  "CMakeFiles/tinyim_v4.dir/DependInfo.cmake"
+  "CMakeFiles/tinyim_v5.dir/DependInfo.cmake"
   )
