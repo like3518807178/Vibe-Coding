@@ -1,5 +1,8 @@
 #include "server.h"
 
+#include "../protocol/FramingCodec.h"
+#include "../protocol/JsonCodec.h"
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -9,6 +12,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
@@ -24,8 +28,8 @@ void printError(const std::string& action) {
 Server::Server(std::uint16_t port) : port_(port), listen_fd_(-1) {}
 
 Server::~Server() {
-    for (int client_fd : client_fds_) {
-        if (close(client_fd) < 0) {
+    for (const auto& entry : clients_) {
+        if (close(entry.first) < 0) {
             printError("close client socket");
         }
     }
@@ -43,8 +47,8 @@ void Server::run() {
         FD_ZERO(&read_fds);
         FD_SET(listen_fd_, &read_fds);
 
-        for (int client_fd : client_fds_) {
-            FD_SET(client_fd, &read_fds);
+        for (const auto& entry : clients_) {
+            FD_SET(entry.first, &read_fds);
         }
 
         const int ready_count = select(getMaxFd() + 1, &read_fds, nullptr, nullptr, nullptr);
@@ -59,16 +63,16 @@ void Server::run() {
             }
         }
 
-        std::set<int> ready_clients;
-        for (int client_fd : client_fds_) {
-            if (FD_ISSET(client_fd, &read_fds)) {
-                ready_clients.insert(client_fd);
+        std::vector<int> ready_clients;
+        for (const auto& entry : clients_) {
+            if (FD_ISSET(entry.first, &read_fds)) {
+                ready_clients.push_back(entry.first);
             }
         }
 
         for (int client_fd : ready_clients) {
-            if (client_fds_.find(client_fd) != client_fds_.end()) {
-                handleClientMessage(client_fd);
+            if (clients_.find(client_fd) != clients_.end()) {
+                handleClientReadable(client_fd);
             }
         }
     }
@@ -109,7 +113,7 @@ bool Server::setupListenSocket() {
         return false;
     }
 
-    std::cout << "Chat server listening on 0.0.0.0:" << port_ << std::endl;
+    std::cout << "Framed chat server listening on 0.0.0.0:" << port_ << std::endl;
     return true;
 }
 
@@ -145,14 +149,14 @@ bool Server::handleNewConnection() {
     );
     const std::string ip_text = ip == nullptr ? "unknown" : ip;
 
-    client_fds_.insert(client_fd);
+    clients_.emplace(client_fd, ClientConnection{client_fd, ""});
     std::cout << "Client connected: " << ip_text
               << ":" << ntohs(client_addr.sin_port)
               << ", fd=" << client_fd << std::endl;
     return true;
 }
 
-void Server::handleClientMessage(int client_fd) {
+void Server::handleClientReadable(int client_fd) {
     char buffer[kBufferSize];
     const ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer));
     if (bytes_read == 0) {
@@ -167,11 +171,57 @@ void Server::handleClientMessage(int client_fd) {
         return;
     }
 
-    broadcastMessage(client_fd, buffer, static_cast<std::size_t>(bytes_read));
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return;
+    }
+
+    it->second.inbuf.append(buffer, static_cast<std::size_t>(bytes_read));
+    if (it->second.inbuf.size() > protocol::FramingCodec::kMaxFrameSize + sizeof(std::uint32_t)) {
+        std::cerr << "Client sent oversized buffered data: fd=" << client_fd << std::endl;
+        removeClient(client_fd);
+        return;
+    }
+
+    if (!processFrames(client_fd)) {
+        removeClient(client_fd);
+    }
+}
+
+bool Server::processFrames(int client_fd) {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return false;
+    }
+
+    while (true) {
+        std::string frame;
+        std::string frame_error;
+        const bool got_frame = protocol::FramingCodec::tryPopFrame(it->second.inbuf, frame, frame_error);
+        if (!frame_error.empty()) {
+            std::cerr << "Invalid frame from fd=" << client_fd
+                      << ": " << frame_error << std::endl;
+            return false;
+        }
+
+        if (!got_frame) {
+            return true;
+        }
+
+        std::string json_error;
+        if (!protocol::JsonCodec::isValidMessage(frame, json_error)) {
+            std::cerr << "JSON body rejected by V2 protocol from fd=" << client_fd
+                      << ": " << json_error << std::endl;
+            return false;
+        }
+
+        std::cout << "Parsed JSON frame from fd=" << client_fd << std::endl;
+        broadcastJsonMessage(client_fd, frame);
+    }
 }
 
 void Server::removeClient(int client_fd) {
-    if (client_fds_.erase(client_fd) == 0) {
+    if (clients_.erase(client_fd) == 0) {
         return;
     }
 
@@ -180,15 +230,18 @@ void Server::removeClient(int client_fd) {
     }
 }
 
-void Server::broadcastMessage(int sender_fd, const char* data, int length) {
-    std::set<int> failed_clients;
-    for (int client_fd : client_fds_) {
+void Server::broadcastJsonMessage(int sender_fd, const std::string& json_text) {
+    const std::string packet = protocol::FramingCodec::encode(json_text);
+
+    std::vector<int> failed_clients;
+    for (const auto& entry : clients_) {
+        const int client_fd = entry.first;
         if (client_fd == sender_fd) {
             continue;
         }
 
-        if (!writeAll(client_fd, data, static_cast<std::size_t>(length))) {
-            failed_clients.insert(client_fd);
+        if (!writeAll(client_fd, packet.data(), packet.size())) {
+            failed_clients.push_back(client_fd);
         }
     }
 
@@ -220,8 +273,8 @@ bool Server::writeAll(int fd, const char* data, std::size_t length) {
 
 int Server::getMaxFd() const {
     int max_fd = listen_fd_;
-    for (int client_fd : client_fds_) {
-        max_fd = std::max(max_fd, client_fd);
+    for (const auto& entry : clients_) {
+        max_fd = std::max(max_fd, entry.first);
     }
 
     return max_fd;

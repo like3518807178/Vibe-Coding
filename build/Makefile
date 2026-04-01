@@ -117,24 +117,72 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named tinyim_v1
+# Target rules for targets named tinyim_v2
 
 # Build rule for target.
-tinyim_v1: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v1
-.PHONY : tinyim_v1
+tinyim_v2: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v2
+.PHONY : tinyim_v2
 
 # fast build rule for target.
-tinyim_v1/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/build
-.PHONY : tinyim_v1/fast
+tinyim_v2/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/build
+.PHONY : tinyim_v2/fast
+
+protocol/FramingCodec.o: protocol/FramingCodec.cpp.o
+.PHONY : protocol/FramingCodec.o
+
+# target to build an object file
+protocol/FramingCodec.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/FramingCodec.cpp.o
+.PHONY : protocol/FramingCodec.cpp.o
+
+protocol/FramingCodec.i: protocol/FramingCodec.cpp.i
+.PHONY : protocol/FramingCodec.i
+
+# target to preprocess a source file
+protocol/FramingCodec.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/FramingCodec.cpp.i
+.PHONY : protocol/FramingCodec.cpp.i
+
+protocol/FramingCodec.s: protocol/FramingCodec.cpp.s
+.PHONY : protocol/FramingCodec.s
+
+# target to generate assembly for a file
+protocol/FramingCodec.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/FramingCodec.cpp.s
+.PHONY : protocol/FramingCodec.cpp.s
+
+protocol/JsonCodec.o: protocol/JsonCodec.cpp.o
+.PHONY : protocol/JsonCodec.o
+
+# target to build an object file
+protocol/JsonCodec.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/JsonCodec.cpp.o
+.PHONY : protocol/JsonCodec.cpp.o
+
+protocol/JsonCodec.i: protocol/JsonCodec.cpp.i
+.PHONY : protocol/JsonCodec.i
+
+# target to preprocess a source file
+protocol/JsonCodec.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/JsonCodec.cpp.i
+.PHONY : protocol/JsonCodec.cpp.i
+
+protocol/JsonCodec.s: protocol/JsonCodec.cpp.s
+.PHONY : protocol/JsonCodec.s
+
+# target to generate assembly for a file
+protocol/JsonCodec.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/protocol/JsonCodec.cpp.s
+.PHONY : protocol/JsonCodec.cpp.s
 
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
 # target to build an object file
 src/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/main.cpp.o
 .PHONY : src/main.cpp.o
 
 src/main.i: src/main.cpp.i
@@ -142,7 +190,7 @@ src/main.i: src/main.cpp.i
 
 # target to preprocess a source file
 src/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/main.cpp.i
 .PHONY : src/main.cpp.i
 
 src/main.s: src/main.cpp.s
@@ -150,7 +198,7 @@ src/main.s: src/main.cpp.s
 
 # target to generate assembly for a file
 src/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
 src/server.o: src/server.cpp.o
@@ -158,7 +206,7 @@ src/server.o: src/server.cpp.o
 
 # target to build an object file
 src/server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/server.cpp.o
 .PHONY : src/server.cpp.o
 
 src/server.i: src/server.cpp.i
@@ -166,7 +214,7 @@ src/server.i: src/server.cpp.i
 
 # target to preprocess a source file
 src/server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/server.cpp.i
 .PHONY : src/server.cpp.i
 
 src/server.s: src/server.cpp.s
@@ -174,7 +222,7 @@ src/server.s: src/server.cpp.s
 
 # target to generate assembly for a file
 src/server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v2.dir/build.make CMakeFiles/tinyim_v2.dir/src/server.cpp.s
 .PHONY : src/server.cpp.s
 
 # Help Target
@@ -185,7 +233,13 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... tinyim_v1"
+	@echo "... tinyim_v2"
+	@echo "... protocol/FramingCodec.o"
+	@echo "... protocol/FramingCodec.i"
+	@echo "... protocol/FramingCodec.s"
+	@echo "... protocol/JsonCodec.o"
+	@echo "... protocol/JsonCodec.i"
+	@echo "... protocol/JsonCodec.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
