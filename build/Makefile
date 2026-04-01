@@ -117,24 +117,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named tinyim_v0
+# Target rules for targets named tinyim_v1
 
 # Build rule for target.
-tinyim_v0: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v0
-.PHONY : tinyim_v0
+tinyim_v1: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v1
+.PHONY : tinyim_v1
 
 # fast build rule for target.
-tinyim_v0/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/build
-.PHONY : tinyim_v0/fast
+tinyim_v1/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/build
+.PHONY : tinyim_v1/fast
 
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
 # target to build an object file
 src/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.o
 .PHONY : src/main.cpp.o
 
 src/main.i: src/main.cpp.i
@@ -142,7 +142,7 @@ src/main.i: src/main.cpp.i
 
 # target to preprocess a source file
 src/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.i
 .PHONY : src/main.cpp.i
 
 src/main.s: src/main.cpp.s
@@ -150,7 +150,7 @@ src/main.s: src/main.cpp.s
 
 # target to generate assembly for a file
 src/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
 src/server.o: src/server.cpp.o
@@ -158,7 +158,7 @@ src/server.o: src/server.cpp.o
 
 # target to build an object file
 src/server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/server.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.o
 .PHONY : src/server.cpp.o
 
 src/server.i: src/server.cpp.i
@@ -166,7 +166,7 @@ src/server.i: src/server.cpp.i
 
 # target to preprocess a source file
 src/server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/server.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.i
 .PHONY : src/server.cpp.i
 
 src/server.s: src/server.cpp.s
@@ -174,7 +174,7 @@ src/server.s: src/server.cpp.s
 
 # target to generate assembly for a file
 src/server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v0.dir/build.make CMakeFiles/tinyim_v0.dir/src/server.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v1.dir/build.make CMakeFiles/tinyim_v1.dir/src/server.cpp.s
 .PHONY : src/server.cpp.s
 
 # Help Target
@@ -185,7 +185,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... tinyim_v0"
+	@echo "... tinyim_v1"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
