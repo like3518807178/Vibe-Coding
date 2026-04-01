@@ -1,61 +1,47 @@
 # TASK.md
 
 ## 当前版本
-V5：单聊与离线消息
+V6：从 select 迁移到单线程 epoll
 
 ## 当前目标
-在 V4 的注册/登录和在线态基础上，实现单聊与离线消息：
-
-- A -> B
-- B 在线时实时投递
-- B 离线时写入 SQLite
-- B 下次登录后自动拉取 / 下发离线消息
+在保持 V2~V5 协议和业务行为基本不变的前提下，把服务端网络层从 select 重构为单线程 epoll。
 
 ## 必做功能
-1. 新增离线消息表 offline_messages
-2. 至少包含这些字段：
-   - msg_id
-   - from_user
-   - to_user
-   - body
-   - ts
-   - delivered
-3. 新增 MessageDao：
-   - InsertOffline(...)
-   - ListUndelivered(...)
-   - MarkDelivered(...)
-4. 新增 OfflineService：
-   - 如果目标用户在线，直接投递
-   - 如果目标用户不在线，写入离线表
-5. 新增单聊消息类型，例如：
-   - {"type":"send","to":"bob","text":"hello"}
-6. 用户登录成功后，自动检查并下发其未投递离线消息
-7. 下发后把消息标记为 delivered
+1. 使用 epoll_create1 / epoll_ctl / epoll_wait 重写事件循环
+2. 所有 socket 改为非阻塞
+3. accept() 循环处理，直到返回 EAGAIN / EWOULDBLOCK
+4. 读事件中持续 read()，直到返回 EAGAIN / EWOULDBLOCK
+5. 保留 V2 的 inbuf + framing 解析逻辑
+6. 新增 outbuf
+7. write() 写不完时，把剩余数据留在 outbuf
+8. 有待发送数据时注册 EPOLLOUT
+9. outbuf 清空后移除 EPOLLOUT
+10. 保持 V3~V5 的 register/login/session/send/offline 行为仍然可用
 
 ## 建议新增/修改模块
-- storage/MessageDao.h
-- storage/MessageDao.cpp
-- service/OfflineService.h
-- service/OfflineService.cpp
+- net/EpollReactor.h
+- net/EpollReactor.cpp
 - src/server.h
 - src/server.cpp
 - README.md
 
 ## 当前限制
-1. 只允许完成 V5
-2. 不要实现 V6 及之后内容
-3. 不要做 epoll
-4. 不要做非阻塞改造
-5. 不要做线程池
-6. ack 机制如果没把握，可以先不做，只完成 delivered 即可
+1. 只允许完成 V6
+2. 不要实现 V7 及之后内容
+3. 不要做 timerfd
+4. 不要做心跳
+5. 不要做 signalfd
+6. 不要做线程池
+7. 不要改动数据库 schema
+8. 不要扩展新业务协议
 
 ## 验收标准
-1. A、B 都登录，A 发 send 给 B，B 能实时收到
-2. B 不登录，A 发 send 给 B，服务端返回“已入离线”或等价成功响应
-3. 执行数据库查询，确认 offline_messages 中有记录
-4. B 登录后，服务端自动下发离线消息
-5. 下发后数据库记录被标记 delivered
-6. 重复登录 B，不应重复收到已经 delivered 的离线消息
+1. 服务端可正常启动并接受多个客户端连接
+2. register/login/session/send/offline 的原有行为保持可用
+3. 半包 / 粘包处理仍然正确
+4. 慢客户端存在时，服务端不会因同步阻塞写而卡死
+5. 写缓冲区清空后，EPOLLOUT 会被正确移除
+6. 客户端断开后，fd 和在线态能被正确清理
 
 ## 完成后必须输出
 1. 修改文件列表

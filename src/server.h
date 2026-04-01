@@ -9,6 +9,7 @@
 #include <utility>
 
 class AuthService;
+class EpollReactor;
 class OfflineService;
 class SessionManager;
 
@@ -21,6 +22,7 @@ enum class ConnectionState {
 struct ClientConnection {
     int fd;
     std::string inbuf;
+    std::string outbuf;
     ConnectionState state;
 };
 
@@ -34,9 +36,12 @@ public:
 
 private:
     bool setupListenSocket();
+    bool setNonBlocking(int fd);
     void closeListenSocket();
-    bool handleNewConnection();
+    bool updateClientEvents(int client_fd);
+    bool handleAccept();
     void handleClientReadable(int client_fd);
+    bool flushClientWrites(int client_fd);
     bool processFrames(int client_fd);
     bool handleApplicationMessage(int client_fd, const std::string& json_text);
     bool sendJsonMessage(int client_fd, const std::string& json_text);
@@ -50,6 +55,7 @@ private:
     std::uint16_t port_;
     std::string db_path_;
     int listen_fd_;
+    std::unique_ptr<EpollReactor> reactor_;
     std::map<int, ClientConnection> clients_;
     std::unique_ptr<AuthService> auth_service_;
     std::unique_ptr<SessionManager> session_manager_;

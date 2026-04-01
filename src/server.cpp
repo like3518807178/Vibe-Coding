@@ -1,5 +1,6 @@
 #include "server.h"
 
+#include "../net/EpollReactor.h"
 #include "../protocol/FramingCodec.h"
 #include "../protocol/JsonCodec.h"
 #include "../service/AuthService.h"
@@ -10,9 +11,10 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <fcntl.h>
 #include <iostream>
 #include <string>
-#include <sys/select.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
@@ -21,9 +23,14 @@ namespace {
 
 constexpr int kBacklog = 16;
 constexpr std::size_t kBufferSize = 4096;
+constexpr int kMaxEvents = 64;
 
 void printError(const std::string& action) {
     std::cerr << action << " failed: " << std::strerror(errno) << std::endl;
+}
+
+bool isWouldBlockError() {
+    return errno == EAGAIN || errno == EWOULDBLOCK;
 }
 
 }  // namespace
@@ -32,6 +39,7 @@ Server::Server(std::uint16_t port, std::string db_path)
     : port_(port),
       db_path_(std::move(db_path)),
       listen_fd_(-1),
+      reactor_(std::make_unique<EpollReactor>()),
       auth_service_(std::make_unique<AuthService>(db_path_)),
       session_manager_(std::make_unique<SessionManager>()),
       offline_service_(std::make_unique<OfflineService>(db_path_, *session_manager_)) {}
@@ -58,41 +66,56 @@ bool Server::start() {
         return false;
     }
 
+    if (!reactor_->create()) {
+        printError("epoll_create1");
+        return false;
+    }
+
     return setupListenSocket();
 }
 
 void Server::run() {
+    std::vector<epoll_event> events(kMaxEvents);
+
     while (true) {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(listen_fd_, &read_fds);
-
-        for (const auto& entry : clients_) {
-            FD_SET(entry.first, &read_fds);
-        }
-
-        const int ready_count = select(getMaxFd() + 1, &read_fds, nullptr, nullptr, nullptr);
+        const int ready_count = reactor_->wait(events, -1);
         if (ready_count < 0) {
-            printError("select");
+            if (errno == EINTR) {
+                continue;
+            }
+
+            printError("epoll_wait");
             continue;
         }
 
-        if (FD_ISSET(listen_fd_, &read_fds)) {
-            if (!handleNewConnection()) {
+        for (int i = 0; i < ready_count; ++i) {
+            const int fd = events[i].data.fd;
+            const std::uint32_t event_mask = events[i].events;
+
+            if (fd == listen_fd_) {
+                if (!handleAccept()) {
+                    continue;
+                }
                 continue;
             }
-        }
 
-        std::vector<int> ready_clients;
-        for (const auto& entry : clients_) {
-            if (FD_ISSET(entry.first, &read_fds)) {
-                ready_clients.push_back(entry.first);
+            if (clients_.find(fd) == clients_.end()) {
+                continue;
             }
-        }
 
-        for (int client_fd : ready_clients) {
-            if (clients_.find(client_fd) != clients_.end()) {
-                handleClientReadable(client_fd);
+            if ((event_mask & (EPOLLERR | EPOLLHUP)) != 0U) {
+                removeClient(fd);
+                continue;
+            }
+
+            if ((event_mask & EPOLLIN) != 0U && clients_.find(fd) != clients_.end()) {
+                handleClientReadable(fd);
+            }
+
+            if ((event_mask & EPOLLOUT) != 0U && clients_.find(fd) != clients_.end()) {
+                if (!flushClientWrites(fd)) {
+                    removeClient(fd);
+                }
             }
         }
     }
@@ -108,6 +131,11 @@ bool Server::setupListenSocket() {
     int opt = 1;
     if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         printError("setsockopt SO_REUSEADDR");
+        closeListenSocket();
+        return false;
+    }
+
+    if (!setNonBlocking(listen_fd_)) {
         closeListenSocket();
         return false;
     }
@@ -133,7 +161,28 @@ bool Server::setupListenSocket() {
         return false;
     }
 
-    std::cout << "Framed chat server listening on 0.0.0.0:" << port_ << std::endl;
+    if (!reactor_->add(listen_fd_, EPOLLIN)) {
+        printError("epoll_ctl add listen fd");
+        closeListenSocket();
+        return false;
+    }
+
+    std::cout << "Epoll chat server listening on 0.0.0.0:" << port_ << std::endl;
+    return true;
+}
+
+bool Server::setNonBlocking(int fd) {
+    const int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0) {
+        printError("fcntl F_GETFL");
+        return false;
+    }
+
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        printError("fcntl F_SETFL O_NONBLOCK");
+        return false;
+    }
+
     return true;
 }
 
@@ -146,66 +195,147 @@ void Server::closeListenSocket() {
     }
 }
 
-bool Server::handleNewConnection() {
-    sockaddr_in client_addr{};
-    socklen_t client_addr_len = sizeof(client_addr);
-    const int client_fd = accept(
-        listen_fd_,
-        reinterpret_cast<sockaddr*>(&client_addr),
-        &client_addr_len
-    );
-
-    if (client_fd < 0) {
-        printError("accept");
+bool Server::updateClientEvents(int client_fd) {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
         return false;
     }
 
-    char client_ip[INET_ADDRSTRLEN] = {0};
-    const char* ip = inet_ntop(
-        AF_INET,
-        &client_addr.sin_addr,
-        client_ip,
-        sizeof(client_ip)
-    );
-    const std::string ip_text = ip == nullptr ? "unknown" : ip;
+    std::uint32_t events = EPOLLIN;
+    if (!it->second.outbuf.empty()) {
+        events |= EPOLLOUT;
+    }
 
-    clients_.emplace(client_fd, ClientConnection{client_fd, "", ConnectionState::Connected});
-    std::cout << "Client connected: " << ip_text
-              << ":" << ntohs(client_addr.sin_port)
-              << ", fd=" << client_fd << std::endl;
+    if (!reactor_->modify(client_fd, events)) {
+        printError("epoll_ctl mod client fd");
+        return false;
+    }
+
     return true;
 }
 
+bool Server::handleAccept() {
+    while (true) {
+        sockaddr_in client_addr{};
+        socklen_t client_addr_len = sizeof(client_addr);
+        const int client_fd = accept(
+            listen_fd_,
+            reinterpret_cast<sockaddr*>(&client_addr),
+            &client_addr_len
+        );
+
+        if (client_fd < 0) {
+            if (isWouldBlockError()) {
+                return true;
+            }
+
+            printError("accept");
+            return false;
+        }
+
+        if (!setNonBlocking(client_fd)) {
+            close(client_fd);
+            continue;
+        }
+
+        char client_ip[INET_ADDRSTRLEN] = {0};
+        const char* ip = inet_ntop(
+            AF_INET,
+            &client_addr.sin_addr,
+            client_ip,
+            sizeof(client_ip)
+        );
+        const std::string ip_text = ip == nullptr ? "unknown" : ip;
+
+        clients_.emplace(client_fd, ClientConnection{client_fd, "", "", ConnectionState::Connected});
+        if (!reactor_->add(client_fd, EPOLLIN)) {
+            printError("epoll_ctl add client fd");
+            clients_.erase(client_fd);
+            close(client_fd);
+            continue;
+        }
+
+        std::cout << "Client connected: " << ip_text
+                  << ":" << ntohs(client_addr.sin_port)
+                  << ", fd=" << client_fd << std::endl;
+    }
+}
+
 void Server::handleClientReadable(int client_fd) {
-    char buffer[kBufferSize];
-    const ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer));
-    if (bytes_read == 0) {
-        std::cout << "Client disconnected: fd=" << client_fd << std::endl;
-        removeClient(client_fd);
-        return;
-    }
-
-    if (bytes_read < 0) {
-        printError("read");
-        removeClient(client_fd);
-        return;
-    }
-
     auto it = clients_.find(client_fd);
     if (it == clients_.end()) {
         return;
     }
 
-    it->second.inbuf.append(buffer, static_cast<std::size_t>(bytes_read));
-    if (it->second.inbuf.size() > protocol::FramingCodec::kMaxFrameSize + sizeof(std::uint32_t)) {
-        std::cerr << "Client sent oversized buffered data: fd=" << client_fd << std::endl;
-        removeClient(client_fd);
-        return;
+    char buffer[kBufferSize];
+    while (true) {
+        const ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer));
+        if (bytes_read == 0) {
+            std::cout << "Client disconnected: fd=" << client_fd << std::endl;
+            removeClient(client_fd);
+            return;
+        }
+
+        if (bytes_read < 0) {
+            if (isWouldBlockError()) {
+                return;
+            }
+
+            printError("read");
+            removeClient(client_fd);
+            return;
+        }
+
+        it = clients_.find(client_fd);
+        if (it == clients_.end()) {
+            return;
+        }
+
+        it->second.inbuf.append(buffer, static_cast<std::size_t>(bytes_read));
+        if (it->second.inbuf.size() > protocol::FramingCodec::kMaxFrameSize + sizeof(std::uint32_t)) {
+            std::cerr << "Client sent oversized buffered data: fd=" << client_fd << std::endl;
+            removeClient(client_fd);
+            return;
+        }
+
+        if (!processFrames(client_fd)) {
+            removeClient(client_fd);
+            return;
+        }
+    }
+}
+
+bool Server::flushClientWrites(int client_fd) {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return false;
     }
 
-    if (!processFrames(client_fd)) {
-        removeClient(client_fd);
+    while (!it->second.outbuf.empty()) {
+        const ssize_t bytes_written = write(
+            client_fd,
+            it->second.outbuf.data(),
+            it->second.outbuf.size()
+        );
+
+        if (bytes_written < 0) {
+            if (isWouldBlockError()) {
+                return true;
+            }
+
+            printError("write");
+            return false;
+        }
+
+        if (bytes_written == 0) {
+            std::cerr << "write failed: wrote 0 bytes" << std::endl;
+            return false;
+        }
+
+        it->second.outbuf.erase(0, static_cast<std::size_t>(bytes_written));
     }
+
+    return updateClientEvents(client_fd);
 }
 
 bool Server::processFrames(int client_fd) {
@@ -231,13 +361,18 @@ bool Server::processFrames(int client_fd) {
         std::map<std::string, std::string> fields;
         std::string json_error;
         if (!protocol::JsonCodec::parseObject(frame, fields, json_error)) {
-            std::cerr << "JSON body rejected by V5 protocol from fd=" << client_fd
+            std::cerr << "JSON body rejected by V6 protocol from fd=" << client_fd
                       << ": " << json_error << std::endl;
             return false;
         }
 
         std::cout << "Parsed JSON frame from fd=" << client_fd << std::endl;
         if (!handleApplicationMessage(client_fd, frame)) {
+            return false;
+        }
+
+        it = clients_.find(client_fd);
+        if (it == clients_.end()) {
             return false;
         }
     }
@@ -363,23 +498,40 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
     );
 }
 
-ConnectionState Server::getConnectionState(int client_fd) const {
-    auto it = clients_.find(client_fd);
-    if (it == clients_.end()) {
-        return ConnectionState::Closed;
-    }
-
-    return it->second.state;
-}
-
 bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
     const std::string packet = protocol::FramingCodec::encode(json_text);
-    if (!writeAll(client_fd, packet.data(), packet.size())) {
-        std::cerr << "Failed to send response to fd=" << client_fd << std::endl;
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
         return false;
     }
 
-    return true;
+    if (it->second.outbuf.empty()) {
+        const ssize_t bytes_written = write(client_fd, packet.data(), packet.size());
+        if (bytes_written < 0) {
+            if (!isWouldBlockError()) {
+                printError("write");
+                return false;
+            }
+
+            it->second.outbuf = packet;
+            return updateClientEvents(client_fd);
+        }
+
+        if (bytes_written == 0) {
+            std::cerr << "write failed: wrote 0 bytes" << std::endl;
+            return false;
+        }
+
+        if (static_cast<std::size_t>(bytes_written) == packet.size()) {
+            return true;
+        }
+
+        it->second.outbuf.append(packet.substr(static_cast<std::size_t>(bytes_written)));
+        return updateClientEvents(client_fd);
+    }
+
+    it->second.outbuf.append(packet);
+    return updateClientEvents(client_fd);
 }
 
 bool Server::sendJsonObject(int client_fd, const std::map<std::string, std::string>& fields) {
@@ -420,6 +572,15 @@ bool Server::deliverOfflineMessages(int client_fd, const std::string& username) 
     return true;
 }
 
+ConnectionState Server::getConnectionState(int client_fd) const {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return ConnectionState::Closed;
+    }
+
+    return it->second.state;
+}
+
 void Server::removeClient(int client_fd) {
     auto it = clients_.find(client_fd);
     if (it == clients_.end()) {
@@ -428,6 +589,7 @@ void Server::removeClient(int client_fd) {
 
     it->second.state = ConnectionState::Closed;
     session_manager_->unbindFd(client_fd);
+    reactor_->remove(client_fd);
     clients_.erase(it);
 
     if (close(client_fd) < 0) {
@@ -440,6 +602,10 @@ bool Server::writeAll(int fd, const char* data, std::size_t length) {
     while (total_written < length) {
         const ssize_t bytes_written = write(fd, data + total_written, length - total_written);
         if (bytes_written < 0) {
+            if (isWouldBlockError()) {
+                return false;
+            }
+
             printError("write");
             return false;
         }

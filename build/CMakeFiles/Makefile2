@@ -63,7 +63,7 @@ CMAKE_BINARY_DIR = /home/like/VibeCoding/build
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/tinyim_v5.dir/all
+all: CMakeFiles/tinyim_v6.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -71,34 +71,34 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/tinyim_v5.dir/clean
+clean: CMakeFiles/tinyim_v6.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/tinyim_v5.dir
+# Target rules for target CMakeFiles/tinyim_v6.dir
 
 # All Build rule for target.
-CMakeFiles/tinyim_v5.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v5.dir/build.make CMakeFiles/tinyim_v5.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v5.dir/build.make CMakeFiles/tinyim_v5.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/like/VibeCoding/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11 "Built target tinyim_v5"
-.PHONY : CMakeFiles/tinyim_v5.dir/all
+CMakeFiles/tinyim_v6.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v6.dir/build.make CMakeFiles/tinyim_v6.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v6.dir/build.make CMakeFiles/tinyim_v6.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/like/VibeCoding/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12 "Built target tinyim_v6"
+.PHONY : CMakeFiles/tinyim_v6.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/tinyim_v5.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/like/VibeCoding/build/CMakeFiles 11
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/tinyim_v5.dir/all
+CMakeFiles/tinyim_v6.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/like/VibeCoding/build/CMakeFiles 12
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/tinyim_v6.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/like/VibeCoding/build/CMakeFiles 0
-.PHONY : CMakeFiles/tinyim_v5.dir/rule
+.PHONY : CMakeFiles/tinyim_v6.dir/rule
 
 # Convenience name for target.
-tinyim_v5: CMakeFiles/tinyim_v5.dir/rule
-.PHONY : tinyim_v5
+tinyim_v6: CMakeFiles/tinyim_v6.dir/rule
+.PHONY : tinyim_v6
 
 # clean rule for target.
-CMakeFiles/tinyim_v5.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v5.dir/build.make CMakeFiles/tinyim_v5.dir/clean
-.PHONY : CMakeFiles/tinyim_v5.dir/clean
+CMakeFiles/tinyim_v6.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v6.dir/build.make CMakeFiles/tinyim_v6.dir/clean
+.PHONY : CMakeFiles/tinyim_v6.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

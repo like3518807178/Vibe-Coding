@@ -1,6 +1,6 @@
-# TinyIM V5
+# TinyIM V6
 
-当前版本只实现 V5：在 V4 的在线态基础上，实现单聊与离线消息。
+当前版本只实现 V6：在保持 V3~V5 业务语义基本不变的前提下，把网络层重构为单线程 `epoll`。
 
 ## 功能范围
 
@@ -22,18 +22,24 @@
 - 目标用户离线时写入 SQLite
 - 用户登录成功后自动拉取并下发未投递离线消息
 - 离线消息表包含 `msg_id / from_user / to_user / body / ts / delivered`
+- 网络事件循环已从 `select` 切换为单线程 `epoll`
+- 所有 socket 均为非阻塞
+- 每个连接新增 `outbuf`
+- 写不完的数据会留在 `outbuf` 中，并通过 `EPOLLOUT` 继续发送
+- `outbuf` 清空后会移除 `EPOLLOUT`
 
 ## 不在本版本内的内容
 
-- `epoll`
 - 线程池
 - ack 机制
+- 心跳 / timerfd
+- signalfd
 
 ## 协议格式
 
 - frame = `4` 字节长度前缀 + JSON body
 - 长度前缀为网络字节序 `uint32_t`
-- 当前 V5 只支持最小 JSON 子集：
+- 当前 V6 只支持最小 JSON 子集：
 - 顶层对象
 - key 为字符串
 - value 暂时只支持字符串
@@ -54,7 +60,7 @@ cmake --build build
 ## 运行
 
 ```bash
-./build/tinyim_v5
+./build/tinyim_v6
 ```
 
 ## 验收
@@ -63,7 +69,7 @@ cmake --build build
 2. 发送 `register` 请求，确认返回成功响应。
 3. A、B 都登录，A 发送 `{"type":"send","to":"bob","text":"hello"}`，确认 B 实时收到 `recv` 消息。
 4. 让 B 离线，A 再发 `send` 给 B，确认 A 收到“已入离线”或等价成功响应。
-5. 执行 `sqlite3 tinyim_v5.db 'select msg_id,from_user,to_user,body,ts,delivered from offline_messages;'`，确认有离线记录。
+5. 执行 `sqlite3 tinyim_v6.db 'select msg_id,from_user,to_user,body,ts,delivered from offline_messages;'`，确认有离线记录。
 6. B 登录，确认服务端自动下发 `offline_msg`。
 7. 再次查询数据库，确认对应记录的 `delivered` 已变成 `1`。
-8. 重复登录 B，不应重复收到已经 `delivered` 的离线消息。
+8. 使用多个客户端并发连接，确认服务端仍可正常收发，不会因慢客户端同步写而整体卡住。
