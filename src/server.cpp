@@ -1,6 +1,7 @@
 #include "server.h"
 
 #include "../net/EpollReactor.h"
+#include "../net/Timer.h"
 #include "../protocol/FramingCodec.h"
 #include "../protocol/JsonCodec.h"
 #include "../service/AuthService.h"
@@ -11,6 +12,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <chrono>
 #include <fcntl.h>
 #include <iostream>
 #include <string>
@@ -24,6 +26,8 @@ namespace {
 constexpr int kBacklog = 16;
 constexpr std::size_t kBufferSize = 4096;
 constexpr int kMaxEvents = 64;
+constexpr int kIdleTimeoutMs = 5000;
+constexpr int kTimerIntervalMs = 1000;
 
 void printError(const std::string& action) {
     std::cerr << action << " failed: " << std::strerror(errno) << std::endl;
@@ -33,16 +37,26 @@ bool isWouldBlockError() {
     return errno == EAGAIN || errno == EWOULDBLOCK;
 }
 
+std::uint64_t currentTimeMs() {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        ).count()
+    );
+}
+
 }  // namespace
 
 Server::Server(std::uint16_t port, std::string db_path)
     : port_(port),
       db_path_(std::move(db_path)),
       listen_fd_(-1),
+      timer_fd_(-1),
       reactor_(std::make_unique<EpollReactor>()),
       auth_service_(std::make_unique<AuthService>(db_path_)),
       session_manager_(std::make_unique<SessionManager>()),
-      offline_service_(std::make_unique<OfflineService>(db_path_, *session_manager_)) {}
+      offline_service_(std::make_unique<OfflineService>(db_path_, *session_manager_)),
+      timer_(std::make_unique<Timer>()) {}
 
 Server::~Server() {
     for (const auto& entry : clients_) {
@@ -52,6 +66,7 @@ Server::~Server() {
     }
 
     closeListenSocket();
+    closeTimer();
 }
 
 bool Server::start() {
@@ -68,6 +83,10 @@ bool Server::start() {
 
     if (!reactor_->create()) {
         printError("epoll_create1");
+        return false;
+    }
+
+    if (!setupTimer()) {
         return false;
     }
 
@@ -94,6 +113,13 @@ void Server::run() {
 
             if (fd == listen_fd_) {
                 if (!handleAccept()) {
+                    continue;
+                }
+                continue;
+            }
+
+            if (fd == timer_fd_) {
+                if (!handleTimerReadable()) {
                     continue;
                 }
                 continue;
@@ -171,6 +197,27 @@ bool Server::setupListenSocket() {
     return true;
 }
 
+bool Server::setupTimer() {
+    if (!timer_->create()) {
+        printError("timerfd_create");
+        return false;
+    }
+
+    if (!timer_->armPeriodic(kTimerIntervalMs)) {
+        printError("timerfd_settime");
+        return false;
+    }
+
+    timer_fd_ = timer_->fd();
+    if (!reactor_->add(timer_fd_, EPOLLIN)) {
+        printError("epoll_ctl add timer fd");
+        closeTimer();
+        return false;
+    }
+
+    return true;
+}
+
 bool Server::setNonBlocking(int fd) {
     const int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0) {
@@ -193,6 +240,13 @@ void Server::closeListenSocket() {
         }
         listen_fd_ = -1;
     }
+}
+
+void Server::closeTimer() {
+    if (timer_) {
+        timer_->closeFd();
+    }
+    timer_fd_ = -1;
 }
 
 bool Server::updateClientEvents(int client_fd) {
@@ -247,7 +301,16 @@ bool Server::handleAccept() {
         );
         const std::string ip_text = ip == nullptr ? "unknown" : ip;
 
-        clients_.emplace(client_fd, ClientConnection{client_fd, "", "", ConnectionState::Connected});
+        clients_.emplace(
+            client_fd,
+            ClientConnection{
+                client_fd,
+                "",
+                "",
+                ConnectionState::Connected,
+                currentTimeMs()
+            }
+        );
         if (!reactor_->add(client_fd, EPOLLIN)) {
             printError("epoll_ctl add client fd");
             clients_.erase(client_fd);
@@ -291,6 +354,7 @@ void Server::handleClientReadable(int client_fd) {
             return;
         }
 
+        refreshLastActive(client_fd);
         it->second.inbuf.append(buffer, static_cast<std::size_t>(bytes_read));
         if (it->second.inbuf.size() > protocol::FramingCodec::kMaxFrameSize + sizeof(std::uint32_t)) {
             std::cerr << "Client sent oversized buffered data: fd=" << client_fd << std::endl;
@@ -303,6 +367,22 @@ void Server::handleClientReadable(int client_fd) {
             return;
         }
     }
+}
+
+bool Server::handleTimerReadable() {
+    std::uint64_t expirations = 0;
+    if (!timer_->readExpirations(expirations)) {
+        printError("read timerfd");
+        return false;
+    }
+
+    const std::vector<int> timeout_fds = collectIdleTimeoutFds();
+    for (int fd : timeout_fds) {
+        std::cout << "Idle timeout, closing fd=" << fd << std::endl;
+        removeClient(fd);
+    }
+
+    return true;
 }
 
 bool Server::flushClientWrites(int client_fd) {
@@ -387,6 +467,19 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
         return false;
     }
 
+    const auto type_it = fields.find("type");
+    if (type_it != fields.end() && type_it->second == "heartbeat") {
+        refreshLastActive(client_fd);
+        return sendJsonObject(
+            client_fd,
+            {
+                {"type", "heartbeat_resp"},
+                {"message", "pong"},
+                {"ok", "true"}
+            }
+        );
+    }
+
     const AuthResult auth_result = auth_service_->handleMessage(fields);
     if (auth_result.handled) {
         std::map<std::string, std::string> response = {
@@ -432,7 +525,6 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
         );
     }
 
-    auto type_it = fields.find("type");
     if (type_it == fields.end()) {
         return sendJsonObject(
             client_fd,
@@ -579,6 +671,30 @@ ConnectionState Server::getConnectionState(int client_fd) const {
     }
 
     return it->second.state;
+}
+
+void Server::refreshLastActive(int client_fd) {
+    auto it = clients_.find(client_fd);
+    if (it == clients_.end()) {
+        return;
+    }
+
+    it->second.last_active_ms = currentTimeMs();
+}
+
+std::vector<int> Server::collectIdleTimeoutFds() const {
+    std::vector<int> timeout_fds;
+    const std::uint64_t now_ms = currentTimeMs();
+
+    for (const auto& entry : clients_) {
+        const ClientConnection& client = entry.second;
+        if (now_ms > client.last_active_ms &&
+            now_ms - client.last_active_ms > static_cast<std::uint64_t>(kIdleTimeoutMs)) {
+            timeout_fds.push_back(entry.first);
+        }
+    }
+
+    return timeout_fds;
 }
 
 void Server::removeClient(int client_fd) {

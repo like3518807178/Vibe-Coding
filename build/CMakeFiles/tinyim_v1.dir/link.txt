@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/tinyim_v1.dir/src/main.cpp.o CMakeFiles/tinyim_v1.dir/src/server.cpp.o -o tinyim_v1 

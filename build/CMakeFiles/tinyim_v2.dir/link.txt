@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/tinyim_v2.dir/src/main.cpp.o CMakeFiles/tinyim_v2.dir/src/server.cpp.o CMakeFiles/tinyim_v2.dir/protocol/FramingCodec.cpp.o CMakeFiles/tinyim_v2.dir/protocol/JsonCodec.cpp.o -o tinyim_v2 

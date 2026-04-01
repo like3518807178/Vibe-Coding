@@ -1,47 +1,48 @@
 # TASK.md
 
 ## 当前版本
-V6：从 select 迁移到单线程 epoll
+V7：心跳与超时回收（timerfd 集成 epoll）
 
 ## 当前目标
-在保持 V2~V5 协议和业务行为基本不变的前提下，把服务端网络层从 select 重构为单线程 epoll。
+在 V6 的 epoll 基础上，引入 heartbeat、last_active 和超时回收机制。
 
 ## 必做功能
-1. 使用 epoll_create1 / epoll_ctl / epoll_wait 重写事件循环
-2. 所有 socket 改为非阻塞
-3. accept() 循环处理，直到返回 EAGAIN / EWOULDBLOCK
-4. 读事件中持续 read()，直到返回 EAGAIN / EWOULDBLOCK
-5. 保留 V2 的 inbuf + framing 解析逻辑
-6. 新增 outbuf
-7. write() 写不完时，把剩余数据留在 outbuf
-8. 有待发送数据时注册 EPOLLOUT
-9. outbuf 清空后移除 EPOLLOUT
-10. 保持 V3~V5 的 register/login/session/send/offline 行为仍然可用
+1. 为每个连接维护 last_active_ms
+2. 收到业务数据或 heartbeat 时更新 last_active_ms
+3. 新增 heartbeat 消息类型，例如：
+   - {"type":"heartbeat","ts":"..."}
+4. 服务端可选回复 pong
+5. 引入 timerfd_create / timerfd_settime
+6. 把 timerfd 加入 epoll 事件循环
+7. 定时扫描连接：
+   - 超过 idle_timeout 的连接主动关闭
+   - 同时清理在线态和 SessionManager 映射
+8. 保持 V3~V6 的 register/login/session/send/offline 行为仍可用
 
 ## 建议新增/修改模块
-- net/EpollReactor.h
-- net/EpollReactor.cpp
+- net/Timer.h
+- net/Timer.cpp
+- service/Heartbeat.h
+- service/Heartbeat.cpp
 - src/server.h
 - src/server.cpp
 - README.md
 
 ## 当前限制
-1. 只允许完成 V6
-2. 不要实现 V7 及之后内容
-3. 不要做 timerfd
-4. 不要做心跳
-5. 不要做 signalfd
-6. 不要做线程池
-7. 不要改动数据库 schema
-8. 不要扩展新业务协议
+1. 只允许完成 V7
+2. 不要实现 V8 及之后内容
+3. 不要做 signalfd（可选项先不做）
+4. 不要做线程池
+5. 不要扩展新业务协议
+6. 不要改数据库 schema，除非确实必要
 
 ## 验收标准
-1. 服务端可正常启动并接受多个客户端连接
-2. register/login/session/send/offline 的原有行为保持可用
-3. 半包 / 粘包处理仍然正确
-4. 慢客户端存在时，服务端不会因同步阻塞写而卡死
-5. 写缓冲区清空后，EPOLLOUT 会被正确移除
-6. 客户端断开后，fd 和在线态能被正确清理
+1. idle_timeout=5s 时，客户端不发 heartbeat，会在约 6~8s 内被服务端回收
+2. 客户端每 1s 发 heartbeat，不会被回收
+3. 停止 heartbeat 后，会在超时后被回收
+4. 被回收连接的在线态会被清理
+5. 清理后同账号可以重新登录
+6. 原有 register/login/send/offline 主链仍可用
 
 ## 完成后必须输出
 1. 修改文件列表

@@ -6,7 +6,7 @@
 
 int main() {
     constexpr std::uint16_t kPort = 7777;
-    const char* kDbPath = "tinyim_v6.db";
+    const char* kDbPath = "tinyim_v7.db";
 
     std::signal(SIGPIPE, SIG_IGN);
 
