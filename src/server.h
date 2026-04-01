@@ -4,7 +4,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
+#include <utility>
+
+class AuthService;
 
 struct ClientConnection {
     int fd;
@@ -13,7 +17,7 @@ struct ClientConnection {
 
 class Server {
 public:
-    explicit Server(std::uint16_t port);
+    Server(std::uint16_t port, std::string db_path);
     ~Server();
 
     bool start();
@@ -25,14 +29,18 @@ private:
     bool handleNewConnection();
     void handleClientReadable(int client_fd);
     bool processFrames(int client_fd);
+    bool handleApplicationMessage(int client_fd, const std::string& json_text);
+    bool sendJsonMessage(int client_fd, const std::string& json_text);
     void removeClient(int client_fd);
     void broadcastJsonMessage(int sender_fd, const std::string& json_text);
     bool writeAll(int fd, const char* data, std::size_t length);
     int getMaxFd() const;
 
     std::uint16_t port_;
+    std::string db_path_;
     int listen_fd_;
     std::map<int, ClientConnection> clients_;
+    std::unique_ptr<AuthService> auth_service_;
 };
 
 #endif

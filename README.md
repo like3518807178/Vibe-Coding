@@ -1,6 +1,6 @@
-# TinyIM V2
+# TinyIM V3
 
-当前版本只实现 V2：基于 `select` 的多客户端聊天室服务端，协议为 `4` 字节长度前缀加 JSON 消息体。
+当前版本只实现 V3：在 V2 协议基础上，引入 SQLite 用户持久化和 `register/login`。
 
 ## 功能范围
 
@@ -9,27 +9,30 @@
 - 每个客户端都有输入缓冲区 `inbuf`
 - 使用 `4` 字节网络字节序长度前缀解决半包/粘包
 - 一次 `read()` 可正确处理半条、一条或多条 frame
-- 符合当前 V2 协议约束的 JSON 消息会广播给其他客户端
-- 非法 frame、超长包、以及不符合当前 V2 JSON 子集约束的消息都会被拒绝，服务端继续运行
+- 启动时自动创建 `users` 表
+- 支持 `register` / `login`
+- 设置了 `sqlite3_busy_timeout`
+- 服务端重启后，已注册用户仍可登录
 
 ## 不在本版本内的内容
 
-- 数据库
-- 登录注册
 - SessionManager
 - `epoll`
 - 线程池
+- 在线态
+- 单聊 / 离线消息
 
 ## 协议格式
 
 - frame = `4` 字节长度前缀 + JSON body
 - 长度前缀为网络字节序 `uint32_t`
-- 当前 V2 只支持最小 JSON 子集：
+- 当前 V3 只支持最小 JSON 子集：
 - 顶层对象
 - key 为字符串
 - value 暂时只支持字符串
-- 示例 body：`{"text":"hello"}`
-- `{"text":123}` 属于合法 JSON，但不符合当前 V2 协议约束
+- 注册请求：`{"type":"register","username":"alice","password":"123456"}`
+- 登录请求：`{"type":"login","username":"alice","password":"123456"}`
+- 普通消息仍可继续广播
 
 ## 编译
 
@@ -41,14 +44,15 @@ cmake --build build
 ## 运行
 
 ```bash
-./build/tinyim_v2
+./build/tinyim_v3
 ```
 
 ## 验收
 
 1. 启动服务端。
-2. 使用自定义客户端发送一个完整 frame，确认服务端能解析并广播。
-3. 把一个 frame 分两次发送，确认服务端仍能解析。
-4. 一次连续发送两个 frame，确认服务端能连续解析两条消息。
-5. 发送不符合当前 V2 JSON 子集约束的消息，例如 `{"text":123}`，确认服务端不崩溃。
-6. 发送超长长度字段，确认服务端拒绝该连接且行为可控。
+2. 发送 `register` 请求，确认返回成功响应。
+3. 使用 `sqlite3 tinyim_v3.db 'select username from users;'` 确认表中有记录。
+4. 重复注册相同用户，确认返回“用户已存在”。
+5. 发送正确密码的 `login` 请求，确认返回成功响应。
+6. 发送错误密码的 `login` 请求，确认返回失败响应且连接不断开。
+7. 重启服务端后再次 `login`，确认已注册用户仍然存在。

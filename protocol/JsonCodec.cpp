@@ -1,6 +1,7 @@
 #include "JsonCodec.h"
 
 #include <cctype>
+#include <sstream>
 
 namespace protocol {
 
@@ -67,6 +68,16 @@ bool JsonCodec::parseString(const std::string& text, std::size_t& pos, std::stri
 }
 
 bool JsonCodec::isValidMessage(const std::string& json_text, std::string& error) {
+    std::map<std::string, std::string> parsed;
+    return parseObject(json_text, parsed, error);
+}
+
+bool JsonCodec::parseObject(
+    const std::string& json_text,
+    std::map<std::string, std::string>& out,
+    std::string& error
+) {
+    out.clear();
     error.clear();
 
     std::size_t pos = 0;
@@ -111,9 +122,11 @@ bool JsonCodec::isValidMessage(const std::string& json_text, std::string& error)
 
         std::string value;
         if (!parseString(json_text, pos, value)) {
-            error = "JSON is valid in general, but V2 only supports string values";
+            error = "JSON is valid in general, but V3 currently only supports string values";
             return false;
         }
+
+        out[key] = value;
 
         skipWhitespace(json_text, pos);
         if (pos >= json_text.size()) {
@@ -142,6 +155,60 @@ bool JsonCodec::isValidMessage(const std::string& json_text, std::string& error)
 
     error = "JSON object is incomplete";
     return false;
+}
+
+std::string JsonCodec::escapeString(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size());
+    for (char ch : value) {
+        switch (ch) {
+            case '"':
+                escaped += "\\\"";
+                break;
+            case '\\':
+                escaped += "\\\\";
+                break;
+            case '\b':
+                escaped += "\\b";
+                break;
+            case '\f':
+                escaped += "\\f";
+                break;
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            default:
+                escaped.push_back(ch);
+                break;
+        }
+    }
+
+    return escaped;
+}
+
+std::string JsonCodec::encodeObject(const std::map<std::string, std::string>& fields) {
+    std::ostringstream oss;
+    oss << "{";
+
+    bool first = true;
+    for (const auto& entry : fields) {
+        if (!first) {
+            oss << ",";
+        }
+
+        first = false;
+        oss << "\"" << escapeString(entry.first) << "\":"
+            << "\"" << escapeString(entry.second) << "\"";
+    }
+
+    oss << "}";
+    return oss.str();
 }
 
 }  // namespace protocol

@@ -2,6 +2,7 @@
 
 #include "../protocol/FramingCodec.h"
 #include "../protocol/JsonCodec.h"
+#include "../service/AuthService.h"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -25,7 +26,11 @@ void printError(const std::string& action) {
 
 }  // namespace
 
-Server::Server(std::uint16_t port) : port_(port), listen_fd_(-1) {}
+Server::Server(std::uint16_t port, std::string db_path)
+    : port_(port),
+      db_path_(std::move(db_path)),
+      listen_fd_(-1),
+      auth_service_(std::make_unique<AuthService>(db_path_)) {}
 
 Server::~Server() {
     for (const auto& entry : clients_) {
@@ -38,6 +43,12 @@ Server::~Server() {
 }
 
 bool Server::start() {
+    std::string db_error;
+    if (!auth_service_->init(db_error)) {
+        std::cerr << "Auth service init failed: " << db_error << std::endl;
+        return false;
+    }
+
     return setupListenSocket();
 }
 
@@ -208,16 +219,48 @@ bool Server::processFrames(int client_fd) {
             return true;
         }
 
+        std::map<std::string, std::string> fields;
         std::string json_error;
-        if (!protocol::JsonCodec::isValidMessage(frame, json_error)) {
-            std::cerr << "JSON body rejected by V2 protocol from fd=" << client_fd
+        if (!protocol::JsonCodec::parseObject(frame, fields, json_error)) {
+            std::cerr << "JSON body rejected by V3 protocol from fd=" << client_fd
                       << ": " << json_error << std::endl;
             return false;
         }
 
         std::cout << "Parsed JSON frame from fd=" << client_fd << std::endl;
-        broadcastJsonMessage(client_fd, frame);
+        if (!handleApplicationMessage(client_fd, frame)) {
+            return false;
+        }
     }
+}
+
+bool Server::handleApplicationMessage(int client_fd, const std::string& json_text) {
+    std::map<std::string, std::string> fields;
+    std::string parse_error;
+    if (!protocol::JsonCodec::parseObject(json_text, fields, parse_error)) {
+        std::cerr << "Failed to parse application JSON from fd=" << client_fd
+                  << ": " << parse_error << std::endl;
+        return false;
+    }
+
+    bool handled = false;
+    const std::map<std::string, std::string> response = auth_service_->handleMessage(fields, handled);
+    if (handled) {
+        return sendJsonMessage(client_fd, protocol::JsonCodec::encodeObject(response));
+    }
+
+    broadcastJsonMessage(client_fd, json_text);
+    return true;
+}
+
+bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
+    const std::string packet = protocol::FramingCodec::encode(json_text);
+    if (!writeAll(client_fd, packet.data(), packet.size())) {
+        std::cerr << "Failed to send response to fd=" << client_fd << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 void Server::removeClient(int client_fd) {

@@ -6,10 +6,11 @@
 
 int main() {
     constexpr std::uint16_t kPort = 7777;
+    const char* kDbPath = "tinyim_v3.db";
 
     std::signal(SIGPIPE, SIG_IGN);
 
-    Server server(kPort);
+    Server server(kPort, kDbPath);
     if (!server.start()) {
         std::cerr << "Server startup failed" << std::endl;
         return 1;
