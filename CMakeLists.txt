@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(tinyim_v7
+add_executable(tinyim_v8
+    common/Logger.cpp
+    common/Config.cpp
     src/main.cpp
     src/server.cpp
     net/EpollReactor.cpp
@@ -21,4 +23,4 @@ add_executable(tinyim_v7
     service/OfflineService.cpp
 )
 
-target_link_libraries(tinyim_v7 PRIVATE sqlite3)
+target_link_libraries(tinyim_v8 PRIVATE sqlite3)

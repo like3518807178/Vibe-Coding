@@ -1,5 +1,7 @@
 #include "AuthService.h"
 
+#include "../common/Logger.h"
+
 #include <utility>
 
 namespace {
@@ -13,6 +15,7 @@ AuthService::AuthService(std::string db_path)
 
 bool AuthService::init(std::string& error) {
     if (!db_.open(db_path_, kBusyTimeoutMs, error)) {
+        Logger::error("Open auth DB failed: db_path=" + db_path_ + ", error=" + error);
         return false;
     }
 
@@ -47,6 +50,7 @@ AuthResult AuthService::handleMessage(const std::map<std::string, std::string>& 
     if (type == "register") {
         std::string error;
         if (!user_dao_.createUser(username_it->second, password_it->second, error)) {
+            Logger::error("Register DB operation failed: user=" + username_it->second + ", error=" + error);
             result.message = error.empty() ? "注册失败" : error;
             return result;
         }
@@ -59,6 +63,7 @@ AuthResult AuthService::handleMessage(const std::map<std::string, std::string>& 
     bool matched = false;
     std::string error;
     if (!user_dao_.verifyUser(username_it->second, password_it->second, matched, error)) {
+        Logger::error("Login DB operation failed: user=" + username_it->second + ", error=" + error);
         result.message = error.empty() ? "登录失败" : error;
         return result;
     }

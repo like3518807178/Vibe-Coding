@@ -1,5 +1,7 @@
 #include "SqliteDB.h"
 
+#include "../common/Logger.h"
+
 #include <string>
 
 SqliteDB::SqliteDB() : db_(nullptr) {}
@@ -16,6 +18,7 @@ bool SqliteDB::open(const std::string& db_path, int busy_timeout_ms, std::string
 
     if (sqlite3_open(db_path.c_str(), &db_) != SQLITE_OK) {
         error = sqlite3_errmsg(db_);
+        Logger::error("sqlite3_open failed: db_path=" + db_path + ", error=" + error);
         if (db_ != nullptr) {
             sqlite3_close(db_);
             db_ = nullptr;
@@ -25,6 +28,7 @@ bool SqliteDB::open(const std::string& db_path, int busy_timeout_ms, std::string
 
     if (sqlite3_busy_timeout(db_, busy_timeout_ms) != SQLITE_OK) {
         error = sqlite3_errmsg(db_);
+        Logger::error("sqlite3_busy_timeout failed: db_path=" + db_path + ", error=" + error);
         sqlite3_close(db_);
         db_ = nullptr;
         return false;
@@ -45,6 +49,7 @@ bool SqliteDB::execute(const std::string& sql, std::string& error) {
         } else {
             error = sqlite3_errmsg(db_);
         }
+        Logger::error("sqlite3_exec failed: error=" + error + ", sql=" + sql);
         return false;
     }
 

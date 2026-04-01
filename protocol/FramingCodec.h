@@ -9,8 +9,8 @@ namespace protocol {
 
 class FramingCodec {
 public:
-    static constexpr std::uint32_t kMaxFrameSize = 1024 * 1024;
-
+    static void setMaxFrameSize(std::uint32_t max_frame_size);
+    static std::uint32_t maxFrameSize();
     static bool tryPopFrame(std::string& inbuf, std::string& frame, std::string& error);
     static std::string encode(const std::string& json_body);
 };

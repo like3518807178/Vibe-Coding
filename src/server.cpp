@@ -1,5 +1,6 @@
 #include "server.h"
 
+#include "../common/Logger.h"
 #include "../net/EpollReactor.h"
 #include "../net/Timer.h"
 #include "../protocol/FramingCodec.h"
@@ -15,6 +16,7 @@
 #include <chrono>
 #include <fcntl.h>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -26,11 +28,10 @@ namespace {
 constexpr int kBacklog = 16;
 constexpr std::size_t kBufferSize = 4096;
 constexpr int kMaxEvents = 64;
-constexpr int kIdleTimeoutMs = 5000;
 constexpr int kTimerIntervalMs = 1000;
 
-void printError(const std::string& action) {
-    std::cerr << action << " failed: " << std::strerror(errno) << std::endl;
+void logErrno(const std::string& action) {
+    Logger::error(action + " failed: " + std::strerror(errno));
 }
 
 bool isWouldBlockError() {
@@ -47,9 +48,11 @@ std::uint64_t currentTimeMs() {
 
 }  // namespace
 
-Server::Server(std::uint16_t port, std::string db_path)
-    : port_(port),
-      db_path_(std::move(db_path)),
+Server::Server(AppConfig config)
+    : port_(config.port),
+      db_path_(std::move(config.db_path)),
+      max_packet_size_(config.max_packet_size),
+      idle_timeout_seconds_(config.idle_timeout),
       listen_fd_(-1),
       timer_fd_(-1),
       reactor_(std::make_unique<EpollReactor>()),
@@ -61,7 +64,7 @@ Server::Server(std::uint16_t port, std::string db_path)
 Server::~Server() {
     for (const auto& entry : clients_) {
         if (close(entry.first) < 0) {
-            printError("close client socket");
+            logErrno("close client socket");
         }
     }
 
@@ -72,17 +75,17 @@ Server::~Server() {
 bool Server::start() {
     std::string db_error;
     if (!auth_service_->init(db_error)) {
-        std::cerr << "Auth service init failed: " << db_error << std::endl;
+        Logger::error("Auth service init failed: " + db_error);
         return false;
     }
 
     if (!offline_service_->init(db_error)) {
-        std::cerr << "Offline service init failed: " << db_error << std::endl;
+        Logger::error("Offline service init failed: " + db_error);
         return false;
     }
 
     if (!reactor_->create()) {
-        printError("epoll_create1");
+        logErrno("epoll_create1");
         return false;
     }
 
@@ -103,7 +106,7 @@ void Server::run() {
                 continue;
             }
 
-            printError("epoll_wait");
+            logErrno("epoll_wait");
             continue;
         }
 
@@ -150,13 +153,13 @@ void Server::run() {
 bool Server::setupListenSocket() {
     listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd_ < 0) {
-        printError("socket");
+        logErrno("socket");
         return false;
     }
 
     int opt = 1;
     if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        printError("setsockopt SO_REUSEADDR");
+        logErrno("setsockopt SO_REUSEADDR");
         closeListenSocket();
         return false;
     }
@@ -176,41 +179,41 @@ bool Server::setupListenSocket() {
             reinterpret_cast<sockaddr*>(&server_addr),
             sizeof(server_addr)
         ) < 0) {
-        printError("bind");
+        logErrno("bind");
         closeListenSocket();
         return false;
     }
 
     if (listen(listen_fd_, kBacklog) < 0) {
-        printError("listen");
+        logErrno("listen");
         closeListenSocket();
         return false;
     }
 
     if (!reactor_->add(listen_fd_, EPOLLIN)) {
-        printError("epoll_ctl add listen fd");
+        logErrno("epoll_ctl add listen fd");
         closeListenSocket();
         return false;
     }
 
-    std::cout << "Epoll chat server listening on 0.0.0.0:" << port_ << std::endl;
+    Logger::info("Server listening on 0.0.0.0:" + std::to_string(port_));
     return true;
 }
 
 bool Server::setupTimer() {
     if (!timer_->create()) {
-        printError("timerfd_create");
+        logErrno("timerfd_create");
         return false;
     }
 
     if (!timer_->armPeriodic(kTimerIntervalMs)) {
-        printError("timerfd_settime");
+        logErrno("timerfd_settime");
         return false;
     }
 
     timer_fd_ = timer_->fd();
     if (!reactor_->add(timer_fd_, EPOLLIN)) {
-        printError("epoll_ctl add timer fd");
+        logErrno("epoll_ctl add timer fd");
         closeTimer();
         return false;
     }
@@ -221,12 +224,12 @@ bool Server::setupTimer() {
 bool Server::setNonBlocking(int fd) {
     const int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0) {
-        printError("fcntl F_GETFL");
+        logErrno("fcntl F_GETFL");
         return false;
     }
 
     if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        printError("fcntl F_SETFL O_NONBLOCK");
+        logErrno("fcntl F_SETFL O_NONBLOCK");
         return false;
     }
 
@@ -236,7 +239,7 @@ bool Server::setNonBlocking(int fd) {
 void Server::closeListenSocket() {
     if (listen_fd_ >= 0) {
         if (close(listen_fd_) < 0) {
-            printError("close listen socket");
+            logErrno("close listen socket");
         }
         listen_fd_ = -1;
     }
@@ -261,7 +264,7 @@ bool Server::updateClientEvents(int client_fd) {
     }
 
     if (!reactor_->modify(client_fd, events)) {
-        printError("epoll_ctl mod client fd");
+        logErrno("epoll_ctl mod client fd");
         return false;
     }
 
@@ -283,7 +286,7 @@ bool Server::handleAccept() {
                 return true;
             }
 
-            printError("accept");
+            logErrno("accept");
             return false;
         }
 
@@ -312,15 +315,16 @@ bool Server::handleAccept() {
             }
         );
         if (!reactor_->add(client_fd, EPOLLIN)) {
-            printError("epoll_ctl add client fd");
+            logErrno("epoll_ctl add client fd");
             clients_.erase(client_fd);
             close(client_fd);
             continue;
         }
 
-        std::cout << "Client connected: " << ip_text
-                  << ":" << ntohs(client_addr.sin_port)
-                  << ", fd=" << client_fd << std::endl;
+        Logger::info(
+            "Client connected: " + ip_text + ":" + std::to_string(ntohs(client_addr.sin_port)) +
+            ", fd=" + std::to_string(client_fd)
+        );
     }
 }
 
@@ -334,7 +338,7 @@ void Server::handleClientReadable(int client_fd) {
     while (true) {
         const ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer));
         if (bytes_read == 0) {
-            std::cout << "Client disconnected: fd=" << client_fd << std::endl;
+            Logger::info("Client disconnected: fd=" + std::to_string(client_fd));
             removeClient(client_fd);
             return;
         }
@@ -344,7 +348,7 @@ void Server::handleClientReadable(int client_fd) {
                 return;
             }
 
-            printError("read");
+            logErrno("read");
             removeClient(client_fd);
             return;
         }
@@ -356,8 +360,8 @@ void Server::handleClientReadable(int client_fd) {
 
         refreshLastActive(client_fd);
         it->second.inbuf.append(buffer, static_cast<std::size_t>(bytes_read));
-        if (it->second.inbuf.size() > protocol::FramingCodec::kMaxFrameSize + sizeof(std::uint32_t)) {
-            std::cerr << "Client sent oversized buffered data: fd=" << client_fd << std::endl;
+        if (it->second.inbuf.size() > static_cast<std::size_t>(max_packet_size_) + sizeof(std::uint32_t)) {
+            Logger::error("Client sent oversized buffered data: fd=" + std::to_string(client_fd));
             removeClient(client_fd);
             return;
         }
@@ -372,13 +376,13 @@ void Server::handleClientReadable(int client_fd) {
 bool Server::handleTimerReadable() {
     std::uint64_t expirations = 0;
     if (!timer_->readExpirations(expirations)) {
-        printError("read timerfd");
+        logErrno("read timerfd");
         return false;
     }
 
     const std::vector<int> timeout_fds = collectIdleTimeoutFds();
     for (int fd : timeout_fds) {
-        std::cout << "Idle timeout, closing fd=" << fd << std::endl;
+        Logger::info("Idle timeout, closing fd=" + std::to_string(fd));
         removeClient(fd);
     }
 
@@ -403,12 +407,12 @@ bool Server::flushClientWrites(int client_fd) {
                 return true;
             }
 
-            printError("write");
+            logErrno("write");
             return false;
         }
 
         if (bytes_written == 0) {
-            std::cerr << "write failed: wrote 0 bytes" << std::endl;
+            Logger::error("write failed: wrote 0 bytes");
             return false;
         }
 
@@ -429,8 +433,7 @@ bool Server::processFrames(int client_fd) {
         std::string frame_error;
         const bool got_frame = protocol::FramingCodec::tryPopFrame(it->second.inbuf, frame, frame_error);
         if (!frame_error.empty()) {
-            std::cerr << "Invalid frame from fd=" << client_fd
-                      << ": " << frame_error << std::endl;
+            Logger::error("Invalid frame from fd=" + std::to_string(client_fd) + ": " + frame_error);
             return false;
         }
 
@@ -441,12 +444,13 @@ bool Server::processFrames(int client_fd) {
         std::map<std::string, std::string> fields;
         std::string json_error;
         if (!protocol::JsonCodec::parseObject(frame, fields, json_error)) {
-            std::cerr << "JSON body rejected by V6 protocol from fd=" << client_fd
-                      << ": " << json_error << std::endl;
+            Logger::error(
+                "JSON body rejected by protocol from fd=" + std::to_string(client_fd) +
+                ": " + json_error
+            );
             return false;
         }
 
-        std::cout << "Parsed JSON frame from fd=" << client_fd << std::endl;
         if (!handleApplicationMessage(client_fd, frame)) {
             return false;
         }
@@ -462,14 +466,17 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
     std::map<std::string, std::string> fields;
     std::string parse_error;
     if (!protocol::JsonCodec::parseObject(json_text, fields, parse_error)) {
-        std::cerr << "Failed to parse application JSON from fd=" << client_fd
-                  << ": " << parse_error << std::endl;
+        Logger::error(
+            "Failed to parse application JSON from fd=" + std::to_string(client_fd) +
+            ": " + parse_error
+        );
         return false;
     }
 
     const auto type_it = fields.find("type");
     if (type_it != fields.end() && type_it->second == "heartbeat") {
         refreshLastActive(client_fd);
+        Logger::info("Heartbeat received: fd=" + std::to_string(client_fd));
         return sendJsonObject(
             client_fd,
             {
@@ -492,15 +499,28 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
             if (session_manager_->isUserOnline(auth_result.username)) {
                 response["ok"] = "false";
                 response["message"] = "用户已在线，当前策略为拒绝新登录";
+                Logger::info("Login rejected, user already online: user=" + auth_result.username);
             } else if (!session_manager_->bindUser(auth_result.username, client_fd)) {
                 response["ok"] = "false";
                 response["message"] = "绑定在线态失败";
+                Logger::error("Bind session failed: user=" + auth_result.username +
+                              ", fd=" + std::to_string(client_fd));
             } else {
                 auto it = clients_.find(client_fd);
                 if (it != clients_.end()) {
                     it->second.state = ConnectionState::Authed;
                 }
+                Logger::info("Login success: user=" + auth_result.username +
+                             ", fd=" + std::to_string(client_fd));
             }
+        } else if (auth_result.type == "login_resp") {
+            Logger::info("Login failed: user=" + auth_result.username +
+                         ", reason=" + auth_result.message);
+        } else if (auth_result.type == "register_resp" && auth_result.success) {
+            Logger::info("Register success: user=" + auth_result.username);
+        } else if (auth_result.type == "register_resp") {
+            Logger::info("Register failed: user=" + auth_result.username +
+                         ", reason=" + auth_result.message);
         }
 
         if (!sendJsonObject(client_fd, response)) {
@@ -564,6 +584,8 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
     SendDispatchResult dispatch{};
     std::string offline_error;
     if (!offline_service_->handleSend(from_user, to_it->second, text_it->second, dispatch, offline_error)) {
+        Logger::error("Send failed: from=" + from_user + ", to=" + to_it->second +
+                      ", reason=" + (offline_error.empty() ? "发送失败" : offline_error));
         return sendJsonObject(
             client_fd,
             {
@@ -575,9 +597,13 @@ bool Server::handleApplicationMessage(int client_fd, const std::string& json_tex
     }
 
     if (dispatch.deliver_online) {
+        Logger::info("Send route online: from=" + from_user + ", to=" + to_it->second +
+                     ", target_fd=" + std::to_string(dispatch.target_fd));
         if (!sendJsonObject(dispatch.target_fd, dispatch.deliver_payload)) {
             return false;
         }
+    } else if (dispatch.stored_offline) {
+        Logger::info("Send route offline store: from=" + from_user + ", to=" + to_it->second);
     }
 
     return sendJsonObject(
@@ -601,7 +627,7 @@ bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
         const ssize_t bytes_written = write(client_fd, packet.data(), packet.size());
         if (bytes_written < 0) {
             if (!isWouldBlockError()) {
-                printError("write");
+                logErrno("write");
                 return false;
             }
 
@@ -610,7 +636,7 @@ bool Server::sendJsonMessage(int client_fd, const std::string& json_text) {
         }
 
         if (bytes_written == 0) {
-            std::cerr << "write failed: wrote 0 bytes" << std::endl;
+            Logger::error("write failed: wrote 0 bytes");
             return false;
         }
 
@@ -634,12 +660,15 @@ bool Server::deliverOfflineMessages(int client_fd, const std::string& username) 
     std::vector<OfflineMessageRecord> records;
     std::string error;
     if (!offline_service_->listUndelivered(username, records, error)) {
-        std::cerr << "Failed to list offline messages for " << username
-                  << ": " << error << std::endl;
+        Logger::error("Failed to list offline messages for " + username + ": " + error);
         return false;
     }
 
     for (const auto& record : records) {
+        Logger::info(
+            "Deliver offline message: user=" + username +
+            ", msg_id=" + std::to_string(record.msg_id)
+        );
         if (!sendJsonObject(
                 client_fd,
                 {
@@ -655,8 +684,10 @@ bool Server::deliverOfflineMessages(int client_fd, const std::string& username) 
         }
 
         if (!offline_service_->markDelivered(record.msg_id, error)) {
-            std::cerr << "Failed to mark offline message delivered, msg_id="
-                      << record.msg_id << ": " << error << std::endl;
+            Logger::error(
+                "Failed to mark offline message delivered, msg_id=" +
+                std::to_string(record.msg_id) + ": " + error
+            );
             return false;
         }
     }
@@ -685,11 +716,12 @@ void Server::refreshLastActive(int client_fd) {
 std::vector<int> Server::collectIdleTimeoutFds() const {
     std::vector<int> timeout_fds;
     const std::uint64_t now_ms = currentTimeMs();
+    const std::uint64_t idle_timeout_ms = static_cast<std::uint64_t>(idle_timeout_seconds_) * 1000ULL;
 
     for (const auto& entry : clients_) {
         const ClientConnection& client = entry.second;
         if (now_ms > client.last_active_ms &&
-            now_ms - client.last_active_ms > static_cast<std::uint64_t>(kIdleTimeoutMs)) {
+            now_ms - client.last_active_ms > idle_timeout_ms) {
             timeout_fds.push_back(entry.first);
         }
     }
@@ -709,7 +741,7 @@ void Server::removeClient(int client_fd) {
     clients_.erase(it);
 
     if (close(client_fd) < 0) {
-        printError("close client socket");
+        logErrno("close client socket");
     }
 }
 
@@ -722,12 +754,12 @@ bool Server::writeAll(int fd, const char* data, std::size_t length) {
                 return false;
             }
 
-            printError("write");
+            logErrno("write");
             return false;
         }
 
         if (bytes_written == 0) {
-            std::cerr << "write failed: wrote 0 bytes" << std::endl;
+            Logger::error("write failed: wrote 0 bytes");
             return false;
         }
 

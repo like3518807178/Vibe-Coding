@@ -1,5 +1,6 @@
 #include "OfflineService.h"
 
+#include "../common/Logger.h"
 #include "SessionManager.h"
 
 #include <ctime>
@@ -20,6 +21,7 @@ OfflineService::OfflineService(std::string db_path, SessionManager& session_mana
 
 bool OfflineService::init(std::string& error) {
     if (!db_.open(db_path_, kBusyTimeoutMs, error)) {
+        Logger::error("Open offline DB failed: db_path=" + db_path_ + ", error=" + error);
         return false;
     }
 
@@ -64,9 +66,13 @@ bool OfflineService::handleSend(
 
     std::int64_t msg_id = 0;
     if (!message_dao_.insertOffline(from_user, to_user, text, ts, msg_id, error)) {
+        Logger::error("Insert offline message failed: from=" + from_user + ", to=" + to_user +
+                      ", error=" + error);
         return false;
     }
 
+    Logger::info("Offline message stored: from=" + from_user + ", to=" + to_user +
+                 ", msg_id=" + std::to_string(msg_id));
     result.success = true;
     result.stored_offline = true;
     result.message = "已入离线";
@@ -86,9 +92,20 @@ bool OfflineService::listUndelivered(
     std::vector<OfflineMessageRecord>& records,
     std::string& error
 ) {
-    return message_dao_.listUndelivered(username, records, error);
+    if (!message_dao_.listUndelivered(username, records, error)) {
+        Logger::error("List offline messages failed: user=" + username + ", error=" + error);
+        return false;
+    }
+
+    return true;
 }
 
 bool OfflineService::markDelivered(std::int64_t msg_id, std::string& error) {
-    return message_dao_.markDelivered(msg_id, error);
+    if (!message_dao_.markDelivered(msg_id, error)) {
+        Logger::error("Mark offline delivered failed: msg_id=" + std::to_string(msg_id) +
+                      ", error=" + error);
+        return false;
+    }
+
+    return true;
 }

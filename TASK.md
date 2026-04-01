@@ -1,48 +1,59 @@
 # TASK.md
 
 ## 当前版本
-V7：心跳与超时回收（timerfd 集成 epoll）
+V8：日志与配置模块化
 
 ## 当前目标
-在 V6 的 epoll 基础上，引入 heartbeat、last_active 和超时回收机制。
+在 V7 的基础上，引入最小 Logger 和最小 Config，使服务端具备基本可观测性和可配置性。
 
 ## 必做功能
-1. 为每个连接维护 last_active_ms
-2. 收到业务数据或 heartbeat 时更新 last_active_ms
-3. 新增 heartbeat 消息类型，例如：
-   - {"type":"heartbeat","ts":"..."}
-4. 服务端可选回复 pong
-5. 引入 timerfd_create / timerfd_settime
-6. 把 timerfd 加入 epoll 事件循环
-7. 定时扫描连接：
-   - 超过 idle_timeout 的连接主动关闭
-   - 同时清理在线态和 SessionManager 映射
-8. 保持 V3~V6 的 register/login/session/send/offline 行为仍可用
+1. 新增 Logger，至少支持：
+   - INFO
+   - ERROR
+2. 关键路径必须打日志：
+   - 新连接建立
+   - 登录成功 / 失败
+   - register 成功 / 失败
+   - send 路由
+   - 离线落库
+   - 登录后离线补发
+   - heartbeat / 超时踢人
+   - SQLite 错误
+3. 新增 Config，至少支持读取：
+   - port
+   - db_path
+   - max_packet_size
+   - idle_timeout
+   - log_level
+4. 启动时打印当前生效配置
+5. 服务端运行时使用 Config 中的端口、DB 路径、包长、超时参数
+6. 保持 V3~V7 的主链仍可用
 
 ## 建议新增/修改模块
-- net/Timer.h
-- net/Timer.cpp
-- service/Heartbeat.h
-- service/Heartbeat.cpp
+- common/Logger.h
+- common/Logger.cpp
+- common/Config.h
+- common/Config.cpp
+- src/main.cpp
 - src/server.h
 - src/server.cpp
 - README.md
 
 ## 当前限制
-1. 只允许完成 V7
-2. 不要实现 V8 及之后内容
-3. 不要做 signalfd（可选项先不做）
-4. 不要做线程池
-5. 不要扩展新业务协议
-6. 不要改数据库 schema，除非确实必要
+1. 只允许完成 V8
+2. 不要再扩展新业务功能
+3. 不要做线程池
+4. 不要做 signalfd
+5. WAL 可以作为可选项，但不是必须
+6. 不要大改现有协议和数据库 schema
 
 ## 验收标准
-1. idle_timeout=5s 时，客户端不发 heartbeat，会在约 6~8s 内被服务端回收
-2. 客户端每 1s 发 heartbeat，不会被回收
-3. 停止 heartbeat 后，会在超时后被回收
-4. 被回收连接的在线态会被清理
-5. 清理后同账号可以重新登录
-6. 原有 register/login/send/offline 主链仍可用
+1. 启动服务端时打印生效配置
+2. register/login/send/offline/heartbeat/timeout 主链仍可用
+3. 故意发送非法包时，有 ERROR 日志
+4. DB 打开失败或 SQL 出错时，有 ERROR 日志
+5. 修改配置文件中的端口、db_path、idle_timeout 后，重启服务端生效
+6. README 明确写清配置项与日志范围
 
 ## 完成后必须输出
 1. 修改文件列表

@@ -1,48 +1,58 @@
-# TinyIM V7
+# TinyIM V8
 
-当前版本只实现 V7：在 V6 单线程 `epoll` 的基础上，引入 `heartbeat`、`last_active`、`idle_timeout` 和 `timerfd` 超时回收。
+当前版本只实现 V8：在 V7 的基础上，引入最小 `Logger` 和最小 `Config`，让服务端具备基础日志与配置能力，同时保持 `register / login / session / send / offline / heartbeat / timeout` 主链不变。
 
 ## 功能范围
 
-- 监听 `7777` 端口
-- 支持多个客户端同时连接
-- 每个客户端都有输入缓冲区 `inbuf`
-- 使用 `4` 字节网络字节序长度前缀解决半包/粘包
-- 一次 `read()` 可正确处理半条、一条或多条 frame
-- 启动时自动创建 `users` 表
-- 支持 `register` / `login`
-- 设置了 `sqlite3_busy_timeout`
-- 服务端重启后，已注册用户仍可登录
-- 为每个连接维护 `Connected / Authed / Closed` 状态
-- 维护 `user -> fd` 和 `fd -> user` 双向映射
-- 未登录用户不能发送业务消息
-- 重复登录策略：拒绝新登录，保留旧连接
-- 支持单聊消息类型 `send`
-- 目标用户在线时实时投递
-- 目标用户离线时写入 SQLite
-- 用户登录成功后自动拉取并下发未投递离线消息
-- 网络事件循环使用单线程 `epoll`
-- 所有 socket 均为非阻塞
-- 每个连接维护 `outbuf`
-- 写不完的数据会留在 `outbuf` 中，并通过 `EPOLLOUT` 继续发送
-- `outbuf` 清空后会移除 `EPOLLOUT`
-- 每个连接维护 `last_active_ms`
-- 成功收到客户端数据后会刷新 `last_active_ms`
-- 成功处理 `heartbeat` 后会再次刷新 `last_active_ms`
-- 新增 `heartbeat` 消息类型
-- 服务端通过 `timerfd_create` / `timerfd_settime` 创建周期定时器
-- `timerfd` 已集成进 `epoll`
-- 定时扫描超时连接，超过 `idle_timeout=5s` 会主动关闭连接
-- 超时关闭时会清理在线态和 `SessionManager` 映射
+- 保留 V7 的单线程 `epoll + timerfd` 主循环
+- 保留 `register / login / send / offline / heartbeat / timeout` 业务链路
+- 新增最小 `Logger`
+- 支持 `INFO` / `ERROR`
+- 新增最小 `Config`
+- 启动时读取 `config/server.conf`
+- 启动时打印生效配置
+- 运行时使用配置项中的 `port / db_path / max_packet_size / idle_timeout / log_level`
+- 在连接建立、登录成功/失败、注册成功/失败、路由投递、离线落库、离线补发、heartbeat、超时踢人、SQLite 错误等关键路径打日志
 
-## 不在本版本内的内容
+## 配置项
 
-- `signalfd`
-- 线程池
-- ack 机制
-- 日志系统
-- 配置系统
-- V8 及之后内容
+配置文件路径：
+
+```bash
+config/server.conf
+```
+
+支持的最小配置项：
+
+- `port`：监听端口
+- `db_path`：SQLite 数据库文件路径
+- `max_packet_size`：协议包体最大长度，单位字节
+- `idle_timeout`：空闲超时时间，单位秒
+- `log_level`：日志级别，支持 `INFO` / `ERROR`
+
+默认示例：
+
+```ini
+port = 7777
+db_path = tinyim_v8.db
+max_packet_size = 1048576
+idle_timeout = 5
+log_level = INFO
+```
+
+## 日志范围
+
+- 新连接建立
+- 客户端断开
+- register 成功 / 失败
+- login 成功 / 失败
+- heartbeat 收到
+- send 在线路由
+- send 离线路由与离线落库
+- 登录后的离线补发
+- idle timeout 超时踢人
+- 非法包 / 非法 JSON
+- SQLite 打开失败、执行失败、离线消息相关数据库失败
 
 ## 协议格式
 
@@ -59,7 +69,6 @@
 - 单聊请求：`{"type":"send","to":"bob","text":"hello"}`
 - 实时接收消息：`{"type":"recv","from":"alice","to":"bob","text":"hello","ts":"..."}`
 - 离线补发消息：`{"type":"offline_msg","msg_id":"1","from":"alice","to":"bob","text":"hello","ts":"..."}`
-- 只有登录成功后的连接才允许发送业务消息
 
 ## 编译
 
@@ -71,18 +80,26 @@ cmake --build build
 ## 运行
 
 ```bash
-./build/tinyim_v7
+./build/tinyim_v8
 ```
 
 ## 验收
 
-1. 启动服务端。
-2. 发送 `register` 请求，确认返回成功响应。
-3. 发送 `login` 请求，确认返回 `login_resp`。
-4. 连续每 `1s` 发送一次 `heartbeat`，确认服务端持续返回 `heartbeat_resp`，连接不会因空闲超时被回收。
-5. 停止发送 `heartbeat`，等待约 `6~8s`，确认服务端主动关闭连接。
-6. 使用同一账号重新登录，确认在线态已清理，能够重新登录成功。
-7. A、B 都登录，A 发送 `{"type":"send","to":"bob","text":"hello"}`，确认 B 实时收到 `recv` 消息。
-8. 让 B 离线，A 再发 `send` 给 B，确认 A 收到“已入离线”或等价成功响应。
-9. 执行 `sqlite3 tinyim_v7.db 'select msg_id,from_user,to_user,body,ts,delivered from offline_messages;'`，确认有离线记录。
-10. B 登录，确认服务端自动下发 `offline_msg`，并且对应记录被标记为已投递。
+1. 启动服务端，确认首先打印生效配置。
+2. 修改 `config/server.conf` 中的 `port / db_path / idle_timeout`，重启后确认配置生效。
+3. 发送 `register` / `login`，确认主链仍正常，并且日志中能看到成功或失败信息。
+4. 登录后每 1 秒发送一次 `heartbeat`，确认仍收到 `heartbeat_resp`，日志中能看到 heartbeat。
+5. 停止发送 heartbeat，等待约 `idle_timeout + 1~3s`，确认连接被踢下线，日志中能看到超时关闭。
+6. A、B 在线时发送 `send`，确认 B 仍能实时收到消息，日志中能看到在线路由。
+7. B 离线时 A 再发送 `send`，确认消息仍入离线库，B 下次登录仍能收到 `offline_msg`，日志中能看到离线落库与补发。
+8. 故意发送非法包或超长包，确认服务端有 `ERROR` 日志。
+9. 把 `db_path` 改成一个无效目录，例如 `/no_such_dir/tinyim.db`，重启后确认启动失败并输出 `ERROR` 日志。
+
+## 不在本版本内的内容
+
+- 线程池
+- `signalfd`
+- ack 机制
+- JSON 扩展
+- 数据库 schema 重构
+- 更复杂的日志切分、异步日志、配置热更新

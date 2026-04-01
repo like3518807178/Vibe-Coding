@@ -117,24 +117,72 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named tinyim_v7
+# Target rules for targets named tinyim_v8
 
 # Build rule for target.
-tinyim_v7: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v7
-.PHONY : tinyim_v7
+tinyim_v8: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tinyim_v8
+.PHONY : tinyim_v8
 
 # fast build rule for target.
-tinyim_v7/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/build
-.PHONY : tinyim_v7/fast
+tinyim_v8/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/build
+.PHONY : tinyim_v8/fast
+
+common/Config.o: common/Config.cpp.o
+.PHONY : common/Config.o
+
+# target to build an object file
+common/Config.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Config.cpp.o
+.PHONY : common/Config.cpp.o
+
+common/Config.i: common/Config.cpp.i
+.PHONY : common/Config.i
+
+# target to preprocess a source file
+common/Config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Config.cpp.i
+.PHONY : common/Config.cpp.i
+
+common/Config.s: common/Config.cpp.s
+.PHONY : common/Config.s
+
+# target to generate assembly for a file
+common/Config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Config.cpp.s
+.PHONY : common/Config.cpp.s
+
+common/Logger.o: common/Logger.cpp.o
+.PHONY : common/Logger.o
+
+# target to build an object file
+common/Logger.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Logger.cpp.o
+.PHONY : common/Logger.cpp.o
+
+common/Logger.i: common/Logger.cpp.i
+.PHONY : common/Logger.i
+
+# target to preprocess a source file
+common/Logger.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Logger.cpp.i
+.PHONY : common/Logger.cpp.i
+
+common/Logger.s: common/Logger.cpp.s
+.PHONY : common/Logger.s
+
+# target to generate assembly for a file
+common/Logger.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/common/Logger.cpp.s
+.PHONY : common/Logger.cpp.s
 
 net/EpollReactor.o: net/EpollReactor.cpp.o
 .PHONY : net/EpollReactor.o
 
 # target to build an object file
 net/EpollReactor.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/EpollReactor.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/EpollReactor.cpp.o
 .PHONY : net/EpollReactor.cpp.o
 
 net/EpollReactor.i: net/EpollReactor.cpp.i
@@ -142,7 +190,7 @@ net/EpollReactor.i: net/EpollReactor.cpp.i
 
 # target to preprocess a source file
 net/EpollReactor.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/EpollReactor.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/EpollReactor.cpp.i
 .PHONY : net/EpollReactor.cpp.i
 
 net/EpollReactor.s: net/EpollReactor.cpp.s
@@ -150,7 +198,7 @@ net/EpollReactor.s: net/EpollReactor.cpp.s
 
 # target to generate assembly for a file
 net/EpollReactor.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/EpollReactor.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/EpollReactor.cpp.s
 .PHONY : net/EpollReactor.cpp.s
 
 net/Timer.o: net/Timer.cpp.o
@@ -158,7 +206,7 @@ net/Timer.o: net/Timer.cpp.o
 
 # target to build an object file
 net/Timer.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/Timer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/Timer.cpp.o
 .PHONY : net/Timer.cpp.o
 
 net/Timer.i: net/Timer.cpp.i
@@ -166,7 +214,7 @@ net/Timer.i: net/Timer.cpp.i
 
 # target to preprocess a source file
 net/Timer.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/Timer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/Timer.cpp.i
 .PHONY : net/Timer.cpp.i
 
 net/Timer.s: net/Timer.cpp.s
@@ -174,7 +222,7 @@ net/Timer.s: net/Timer.cpp.s
 
 # target to generate assembly for a file
 net/Timer.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/net/Timer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/net/Timer.cpp.s
 .PHONY : net/Timer.cpp.s
 
 protocol/FramingCodec.o: protocol/FramingCodec.cpp.o
@@ -182,7 +230,7 @@ protocol/FramingCodec.o: protocol/FramingCodec.cpp.o
 
 # target to build an object file
 protocol/FramingCodec.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/FramingCodec.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/FramingCodec.cpp.o
 .PHONY : protocol/FramingCodec.cpp.o
 
 protocol/FramingCodec.i: protocol/FramingCodec.cpp.i
@@ -190,7 +238,7 @@ protocol/FramingCodec.i: protocol/FramingCodec.cpp.i
 
 # target to preprocess a source file
 protocol/FramingCodec.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/FramingCodec.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/FramingCodec.cpp.i
 .PHONY : protocol/FramingCodec.cpp.i
 
 protocol/FramingCodec.s: protocol/FramingCodec.cpp.s
@@ -198,7 +246,7 @@ protocol/FramingCodec.s: protocol/FramingCodec.cpp.s
 
 # target to generate assembly for a file
 protocol/FramingCodec.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/FramingCodec.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/FramingCodec.cpp.s
 .PHONY : protocol/FramingCodec.cpp.s
 
 protocol/JsonCodec.o: protocol/JsonCodec.cpp.o
@@ -206,7 +254,7 @@ protocol/JsonCodec.o: protocol/JsonCodec.cpp.o
 
 # target to build an object file
 protocol/JsonCodec.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/JsonCodec.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/JsonCodec.cpp.o
 .PHONY : protocol/JsonCodec.cpp.o
 
 protocol/JsonCodec.i: protocol/JsonCodec.cpp.i
@@ -214,7 +262,7 @@ protocol/JsonCodec.i: protocol/JsonCodec.cpp.i
 
 # target to preprocess a source file
 protocol/JsonCodec.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/JsonCodec.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/JsonCodec.cpp.i
 .PHONY : protocol/JsonCodec.cpp.i
 
 protocol/JsonCodec.s: protocol/JsonCodec.cpp.s
@@ -222,7 +270,7 @@ protocol/JsonCodec.s: protocol/JsonCodec.cpp.s
 
 # target to generate assembly for a file
 protocol/JsonCodec.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/protocol/JsonCodec.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/protocol/JsonCodec.cpp.s
 .PHONY : protocol/JsonCodec.cpp.s
 
 service/AuthService.o: service/AuthService.cpp.o
@@ -230,7 +278,7 @@ service/AuthService.o: service/AuthService.cpp.o
 
 # target to build an object file
 service/AuthService.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/AuthService.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/AuthService.cpp.o
 .PHONY : service/AuthService.cpp.o
 
 service/AuthService.i: service/AuthService.cpp.i
@@ -238,7 +286,7 @@ service/AuthService.i: service/AuthService.cpp.i
 
 # target to preprocess a source file
 service/AuthService.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/AuthService.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/AuthService.cpp.i
 .PHONY : service/AuthService.cpp.i
 
 service/AuthService.s: service/AuthService.cpp.s
@@ -246,7 +294,7 @@ service/AuthService.s: service/AuthService.cpp.s
 
 # target to generate assembly for a file
 service/AuthService.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/AuthService.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/AuthService.cpp.s
 .PHONY : service/AuthService.cpp.s
 
 service/OfflineService.o: service/OfflineService.cpp.o
@@ -254,7 +302,7 @@ service/OfflineService.o: service/OfflineService.cpp.o
 
 # target to build an object file
 service/OfflineService.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/OfflineService.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/OfflineService.cpp.o
 .PHONY : service/OfflineService.cpp.o
 
 service/OfflineService.i: service/OfflineService.cpp.i
@@ -262,7 +310,7 @@ service/OfflineService.i: service/OfflineService.cpp.i
 
 # target to preprocess a source file
 service/OfflineService.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/OfflineService.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/OfflineService.cpp.i
 .PHONY : service/OfflineService.cpp.i
 
 service/OfflineService.s: service/OfflineService.cpp.s
@@ -270,7 +318,7 @@ service/OfflineService.s: service/OfflineService.cpp.s
 
 # target to generate assembly for a file
 service/OfflineService.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/OfflineService.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/OfflineService.cpp.s
 .PHONY : service/OfflineService.cpp.s
 
 service/SessionManager.o: service/SessionManager.cpp.o
@@ -278,7 +326,7 @@ service/SessionManager.o: service/SessionManager.cpp.o
 
 # target to build an object file
 service/SessionManager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/SessionManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/SessionManager.cpp.o
 .PHONY : service/SessionManager.cpp.o
 
 service/SessionManager.i: service/SessionManager.cpp.i
@@ -286,7 +334,7 @@ service/SessionManager.i: service/SessionManager.cpp.i
 
 # target to preprocess a source file
 service/SessionManager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/SessionManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/SessionManager.cpp.i
 .PHONY : service/SessionManager.cpp.i
 
 service/SessionManager.s: service/SessionManager.cpp.s
@@ -294,7 +342,7 @@ service/SessionManager.s: service/SessionManager.cpp.s
 
 # target to generate assembly for a file
 service/SessionManager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/service/SessionManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/service/SessionManager.cpp.s
 .PHONY : service/SessionManager.cpp.s
 
 src/main.o: src/main.cpp.o
@@ -302,7 +350,7 @@ src/main.o: src/main.cpp.o
 
 # target to build an object file
 src/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/main.cpp.o
 .PHONY : src/main.cpp.o
 
 src/main.i: src/main.cpp.i
@@ -310,7 +358,7 @@ src/main.i: src/main.cpp.i
 
 # target to preprocess a source file
 src/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/main.cpp.i
 .PHONY : src/main.cpp.i
 
 src/main.s: src/main.cpp.s
@@ -318,7 +366,7 @@ src/main.s: src/main.cpp.s
 
 # target to generate assembly for a file
 src/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
 src/server.o: src/server.cpp.o
@@ -326,7 +374,7 @@ src/server.o: src/server.cpp.o
 
 # target to build an object file
 src/server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/server.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/server.cpp.o
 .PHONY : src/server.cpp.o
 
 src/server.i: src/server.cpp.i
@@ -334,7 +382,7 @@ src/server.i: src/server.cpp.i
 
 # target to preprocess a source file
 src/server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/server.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/server.cpp.i
 .PHONY : src/server.cpp.i
 
 src/server.s: src/server.cpp.s
@@ -342,7 +390,7 @@ src/server.s: src/server.cpp.s
 
 # target to generate assembly for a file
 src/server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/src/server.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/src/server.cpp.s
 .PHONY : src/server.cpp.s
 
 storage/MessageDao.o: storage/MessageDao.cpp.o
@@ -350,7 +398,7 @@ storage/MessageDao.o: storage/MessageDao.cpp.o
 
 # target to build an object file
 storage/MessageDao.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/MessageDao.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/MessageDao.cpp.o
 .PHONY : storage/MessageDao.cpp.o
 
 storage/MessageDao.i: storage/MessageDao.cpp.i
@@ -358,7 +406,7 @@ storage/MessageDao.i: storage/MessageDao.cpp.i
 
 # target to preprocess a source file
 storage/MessageDao.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/MessageDao.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/MessageDao.cpp.i
 .PHONY : storage/MessageDao.cpp.i
 
 storage/MessageDao.s: storage/MessageDao.cpp.s
@@ -366,7 +414,7 @@ storage/MessageDao.s: storage/MessageDao.cpp.s
 
 # target to generate assembly for a file
 storage/MessageDao.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/MessageDao.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/MessageDao.cpp.s
 .PHONY : storage/MessageDao.cpp.s
 
 storage/SqliteDB.o: storage/SqliteDB.cpp.o
@@ -374,7 +422,7 @@ storage/SqliteDB.o: storage/SqliteDB.cpp.o
 
 # target to build an object file
 storage/SqliteDB.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/SqliteDB.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/SqliteDB.cpp.o
 .PHONY : storage/SqliteDB.cpp.o
 
 storage/SqliteDB.i: storage/SqliteDB.cpp.i
@@ -382,7 +430,7 @@ storage/SqliteDB.i: storage/SqliteDB.cpp.i
 
 # target to preprocess a source file
 storage/SqliteDB.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/SqliteDB.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/SqliteDB.cpp.i
 .PHONY : storage/SqliteDB.cpp.i
 
 storage/SqliteDB.s: storage/SqliteDB.cpp.s
@@ -390,7 +438,7 @@ storage/SqliteDB.s: storage/SqliteDB.cpp.s
 
 # target to generate assembly for a file
 storage/SqliteDB.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/SqliteDB.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/SqliteDB.cpp.s
 .PHONY : storage/SqliteDB.cpp.s
 
 storage/UserDao.o: storage/UserDao.cpp.o
@@ -398,7 +446,7 @@ storage/UserDao.o: storage/UserDao.cpp.o
 
 # target to build an object file
 storage/UserDao.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/UserDao.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/UserDao.cpp.o
 .PHONY : storage/UserDao.cpp.o
 
 storage/UserDao.i: storage/UserDao.cpp.i
@@ -406,7 +454,7 @@ storage/UserDao.i: storage/UserDao.cpp.i
 
 # target to preprocess a source file
 storage/UserDao.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/UserDao.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/UserDao.cpp.i
 .PHONY : storage/UserDao.cpp.i
 
 storage/UserDao.s: storage/UserDao.cpp.s
@@ -414,7 +462,7 @@ storage/UserDao.s: storage/UserDao.cpp.s
 
 # target to generate assembly for a file
 storage/UserDao.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v7.dir/build.make CMakeFiles/tinyim_v7.dir/storage/UserDao.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tinyim_v8.dir/build.make CMakeFiles/tinyim_v8.dir/storage/UserDao.cpp.s
 .PHONY : storage/UserDao.cpp.s
 
 # Help Target
@@ -425,7 +473,13 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... tinyim_v7"
+	@echo "... tinyim_v8"
+	@echo "... common/Config.o"
+	@echo "... common/Config.i"
+	@echo "... common/Config.s"
+	@echo "... common/Logger.o"
+	@echo "... common/Logger.i"
+	@echo "... common/Logger.s"
 	@echo "... net/EpollReactor.o"
 	@echo "... net/EpollReactor.i"
 	@echo "... net/EpollReactor.s"

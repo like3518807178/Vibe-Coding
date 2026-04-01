@@ -1,6 +1,8 @@
 #ifndef TINYIM_SERVER_H
 #define TINYIM_SERVER_H
 
+#include "../common/Config.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -31,7 +33,7 @@ struct ClientConnection {
 
 class Server {
 public:
-    Server(std::uint16_t port, std::string db_path);
+    explicit Server(AppConfig config);
     ~Server();
 
     bool start();
@@ -62,6 +64,8 @@ private:
 
     std::uint16_t port_;
     std::string db_path_;
+    std::uint32_t max_packet_size_;
+    int idle_timeout_seconds_;
     int listen_fd_;
     int timer_fd_;
     std::unique_ptr<EpollReactor> reactor_;

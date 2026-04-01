@@ -1,18 +1,31 @@
 #include "server.h"
 
+#include "../common/Config.h"
+#include "../common/Logger.h"
+#include "../protocol/FramingCodec.h"
+
 #include <cstdint>
-#include <iostream>
 #include <csignal>
+#include <iostream>
 
 int main() {
-    constexpr std::uint16_t kPort = 7777;
-    const char* kDbPath = "tinyim_v7.db";
+    const std::string config_path = "config/server.conf";
+    AppConfig config;
+    std::string config_error;
+    if (!Config::loadFromFile(config_path, config, config_error)) {
+        std::cerr << "Config load failed: " << config_error << std::endl;
+        return 1;
+    }
+
+    Logger::setLevel(config.log_level);
+    Logger::info(Config::toDisplayString(config));
+    protocol::FramingCodec::setMaxFrameSize(config.max_packet_size);
 
     std::signal(SIGPIPE, SIG_IGN);
 
-    Server server(kPort, kDbPath);
+    Server server(config);
     if (!server.start()) {
-        std::cerr << "Server startup failed" << std::endl;
+        Logger::error("Server startup failed");
         return 1;
     }
 

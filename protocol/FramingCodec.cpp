@@ -5,6 +5,23 @@
 
 namespace protocol {
 
+namespace {
+
+std::uint32_t& globalMaxFrameSize() {
+    static std::uint32_t value = 1024 * 1024;
+    return value;
+}
+
+}  // namespace
+
+void FramingCodec::setMaxFrameSize(std::uint32_t max_frame_size) {
+    globalMaxFrameSize() = max_frame_size;
+}
+
+std::uint32_t FramingCodec::maxFrameSize() {
+    return globalMaxFrameSize();
+}
+
 bool FramingCodec::tryPopFrame(std::string& inbuf, std::string& frame, std::string& error) {
     frame.clear();
     error.clear();
@@ -17,7 +34,7 @@ bool FramingCodec::tryPopFrame(std::string& inbuf, std::string& frame, std::stri
     std::memcpy(&body_len_network, inbuf.data(), sizeof(body_len_network));
 
     const std::uint32_t body_len = ntohl(body_len_network);
-    if (body_len > kMaxFrameSize) {
+    if (body_len > maxFrameSize()) {
         error = "frame length exceeds limit";
         return false;
     }
